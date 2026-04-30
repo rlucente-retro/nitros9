@@ -286,17 +286,6 @@ InitDisplay         pshs      u                   save important registers
                     lda       MAPSLOT             get the MMU slot we'll map to
                     pshs      a                   save it on the stack
 
-                    * Pre-calculate clear count and read offsets before remapping MMU
-                    * because static variables in ,u may become inaccessible.
-                    lda       V.ScWidth,u
-                    ldb       V.ScHeight,u
-                    mul                           D = Total screen size
-                    lsra                          Divide by 2 for std loop
-                    rorb
-                    pshs      d                   Save clear count on stack
-                    lda       V.WStartY,u
-                    pshs      a                   Save WStartY on stack
-
 * Put graphics into text mode.
                     ldx       #TXT.Base
                     ldd       V.ScWidth,u         Get physical dimensions
@@ -317,7 +306,7 @@ InitDisplay         pshs      u                   save important registers
 l@                  tfr       d,x                 transfer it to X
                     stb       MAPADDR,x           store at $0000 off of X
                     stb       MAPADDR+$400,x      store at $0400 off of X
-                    stb       MAPADDR+$800,x      store at $0800 off of X
+                    stb       MAPADDR+$800,x      store at $0400 off of X
                     incb                          increment the counter
                     bne       l@                  loop until complete
 
@@ -360,7 +349,7 @@ initcursor          ldx       #TXT.Base
                     clrb
                     std       VKY_TXT_CURSOR_Y_REG_H,x
                     std       VKY_TXT_CURSOR_X_REG_H,x
-                    lda       ,s                  Get saved WStartY from stack
+                    lda       V.WStartY,u         Get window start Y (initially 0)
                     sta       VKY_TXT_CURSOR_Y_REG_L,x
                     lda       #'_
                     sta       VKY_TXT_CURSOR_CHAR_REG,x
@@ -369,16 +358,13 @@ initcursor          ldx       #TXT.Base
 setforeback         lda       #$C3                get the foreground/background LUT MMU block
                     sta       MAPSLOT             store it in the MMU slot to map it in
                     ldd       #$10*256+$10        load D with the LUT values
-                    ldy       1,s                 Get saved clear count from stack
                     bsr       clr                 call the clear routine
 
 * Clear text screen.
                     lda       #$C2                get the text MMU block
                     sta       MAPSLOT             store it in the MMU slot to map it in
                     ldd       #$20*256+$20        load D with the space character
-                    ldy       1,s                 Get saved clear count from stack
                     bsr       clr                 call the clear routine
-                    leas      3,s                 Clean up WStartY and clear count from stack
                     puls      a                   restore the saved map slot value
                     sta       MAPSLOT             and restore the it in the MMU
                     puls      u,pc                restore the registers and return
@@ -395,13 +381,19 @@ l@                  ldd       ,x++                get two bytes from the source
                     rts                           return
 
 * Clear memory at MAPADDR with the contents of D.
-* Entry: D = value to write, Y = loop count
 clr                 pshs      d,y,x
+                    lda       V.ScWidth,u
+                    ldb       V.ScHeight,u
+                    mul                           D = Total screen size
+                    lsra                          Divide by 2 for std loop
+                    rorb
+                    tfr       d,y                 Y = Loop counter
                     ldx       #MAPADDR
+                    puls      d                   Restore value to write
 l@                  std       ,x++
                     leay      -1,y
                     bne       l@
-                    puls      x,y,d,pc
+                    puls      x,y,pc
 
 * Keyboard initialization  
 * NOTE: If we fail to find the 'keydrv' module, carry is returned set, but
