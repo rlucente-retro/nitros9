@@ -1049,47 +1049,87 @@ Do1B20TTXXYYWWHHFFBB
 
 ;;; DWSet
 ;;;
-;;; Set a device window.
+;;; Set a device window and establish a vertical split screen.
 ;;;
 ;;; Code: 1B 20
 ;;;
 ;;; Parameters: STY CPX CPY SZX SZY PRN1 PRN2 PRN3
 ;;;
+;;; DESIGN NOTE: This implementation only supports a vertical split (top/bottom panes).
+;;; Windows are always full physical width; CPX and SZX are ignored.
+;;;
 ;;; STY = screen type: $01 = 40x30, $02 = 80x30, $03 = 40x60, $04 = 80x60.
-;;; CPX = starting position X.
-;;; CPY = starting position Y.
-;;; SZX = width starting at X.
-;;; SZY = height starting at Y.
+;;; CPX = (IGNORED)
+;;; CPY = Starting Y position. This becomes the SplitRow (boundary line).
+;;; SZX = (IGNORED)
+;;; SZY = Window Height. This is the height of the active lower pane (Window 1).
 ;;; PRN1 = foreground color.
 ;;; PRN2 = background color.
 ;;; PRN3 = border color.
+;;;
+;;; OPERATION:
+;;; 1. Clears the entire physical screen.
+;;; 2. Defines Window 0 (Upper): Rows 0 to CPY-1.
+;;; 3. Defines Window 1 (Lower): Rows CPY to CPY+SZY-1.
+;;; 4. Window 1 is activated by default. Cursors for both panes are reset to (0,0).
 DWSet               lda       V.DWType,u
                     sta       V.ScTyp,u
                     cmpa      #$01                40x30?
                     bne       IsIt80x30
-                    bsr       SetWin40x30
-                    bra       setcols@
+                    lbsr      SetWin40x30
+                    lbra      setcols@
 IsIt80x30           cmpa      #$02
                     bne       IsIt40x60
-                    bsr       SetWin80x30
-                    bra       setcols@
+                    lbsr      SetWin80x30
+                    lbra      setcols@
 IsIt40x60           cmpa      #$03
                     bne       IsIt80x60
-                    bsr       SetWin40x60
-                    bra       setcols@
-IsIt80x60           bsr       SetWin80x60                    
+                    lbsr      SetWin40x60
+                    lbra      setcols@
+IsIt80x60           lbsr      SetWin80x60                    
 setcols@            lda       V.DWFore,u
                     lbsr      SetForeColor
                     lda       V.DWBack,u
                     lbsr      SetBackColor
                     lda       V.DWBorder,u
                     lbsr      SetBorderColor
+
+* Clear full physical screen first
+                    lda       V.ScWidth,u
+                    sta       V.WWidth,u
+                    lda       V.ScHeight,u
+                    sta       V.WHeight,u
+                    clr       V.WStartY,u
                     lbsr      ClrScrn
+
+* Initialize window variables
+* Upper pane (Window 0): Rows 0 to V.SplitRow-1
+* Lower pane (Window 1): Rows V.SplitRow to V.ScHeight-1
+                    lda       V.ScWidth,u
+                    sta       V.WWidth,u
+                    lda       V.DWHeight,u
+                    sta       V.WHeight,u
+                    sta       V.Slot1Hgt,u        store height for Window 1
+                    lda       V.DWStartY,u
+                    sta       V.WStartY,u
+                    sta       V.SplitRow,u
+                    lda       #1
+                    sta       V.ActiveWin,u
+
+* Initialize slot states (both at 0,0)
+                    ldb       V.FBCol,u
+                    clra
+                    std       V.Slot0Stat,u
+                    stb       V.Slot0Stat+2,u
+                    std       V.Slot1Stat,u
+                    stb       V.Slot1Stat+2,u
+
+                    lbsr      CurHome             ensure cursor is at 0,0 for active window
                     lbra      ResetHandler
 
 SetWin40x30         ldb       #DBL_Y|DBL_X
                     ldx       #40*256+30
-SetWin              stx       V.WWidth,u
+SetWin              stx       V.ScWidth,u
                     pshs      b
                     ldx       #TXT.Base
                     ldb       MASTER_CTRL_REG_H,x
@@ -1190,28 +1230,140 @@ ChgBackPal          ldx       #MAPADDR
                     bra       ChgPal
 
 * These do nothing for now.
-DefColr
-DWSelect
-DWEnd               lbra      ResetHandler
+DefColr             lbra      ResetHandler
+
+;;; DWSelect
+;;;
+;;; Select an active window (pane).
+;;;
+;;; Code: 1B 21
+;;;
+;;; Parameter: WinID
+;;;
+;;; WinID = 0: Upper pane.
+;;; WinID = 1: Lower pane.
+;;;
+;;; OPERATION:
+;;; 1. Saves current window's Row, Col, and Color to its SlotStat buffer.
+;;; 2. Updates active boundaries (V.WStartY, V.WHeight) for the new window.
+;;; 3. Restores new window's state from its SlotStat buffer.
+DWSelect            leax      Do1B21,pcr
+                    lbra      SetHandler
+
+* Select Active Window
+*   WinID 0: Upper pane (Rows 0 to V.SplitRow-1)
+*   WinID 1: Lower pane (Rows V.SplitRow to V.ScHeight-1)
+Do1B21              tst       V.SplitRow,u        is there a split?
+                    lbeq      Do1B21_out
+                    cmpa      V.ActiveWin,u       already active?
+                    lbeq      Do1B21_out
+                    cmpa      #1                  valid WinID?
+                    lbhi      Do1B21_out
+                    
+                    ; Save current state
+                    pshs      a
+                    lda       V.ActiveWin,u
+                    tsta
+                    beq       Do1B21_save0
+                    leax      V.Slot1Stat,u
+                    bra       Do1B21_save_done
+Do1B21_save0        leax      V.Slot0Stat,u
+Do1B21_save_done    ldb       V.CurRow,u
+                    stb       ,x
+                    ldb       V.CurCol,u
+                    stb       1,x
+                    ldb       V.FBCol,u
+                    stb       2,x
+                    puls      a
+                    
+                    ; Switch window
+                    sta       V.ActiveWin,u
+                    tsta
+                    beq       Do1B21_sel0
+                    
+                    ; Select Window 1
+                    lda       V.SplitRow,u
+                    sta       V.WStartY,u
+                    lda       V.Slot1Hgt,u        restore Window 1 height
+                    sta       V.WHeight,u
+                    leax      V.Slot1Stat,u
+                    bra       Do1B21_rest_done
+                    
+Do1B21_sel0         clr       V.WStartY,u
+                    lda       V.SplitRow,u
+                    sta       V.WHeight,u
+                    leax      V.Slot0Stat,u
+                    
+Do1B21_rest_done    ldb       ,x
+                    stb       V.CurRow,u
+                    ldb       1,x
+                    stb       V.CurCol,u
+                    ldb       2,x
+                    stb       V.FBCol,u
+Do1B21_out          lbra      ResetHandler
+
+;;; DWEnd
+;;;
+;;; End a split screen and merge panes back to a single window.
+;;;
+;;; Code: 1B 24
+;;;
+;;; OPERATION:
+;;; 1. If Window 0 is active: Restores the state of Window 1.
+;;; 2. If Window 1 is active: Adds V.WStartY to CurRow to maintain physical position.
+;;; 3. Resets boundaries to full screen (starting at row 0).
+* Reset to Single Pane
+*   Merges panes back to a single window (Window 1 active, starting at row 0)
+DWEnd               tst       V.SplitRow,u        is there a split?
+                    beq       DWEnd_out           no, nothing to do
+                    
+                    lda       V.ActiveWin,u       which window is active?
+                    tsta
+                    bne       DWEnd_in1           already in window 1
+                    
+                    ; We are ending the split while in window 0.
+                    ; Restore Window 1's saved state so we return to where we were.
+                    leax      V.Slot1Stat,u
+                    ldb       ,x
+                    stb       V.CurRow,u
+                    ldb       1,x
+                    stb       V.CurCol,u
+                    ldb       2,x
+                    stb       V.FBCol,u
+                    bra       DWEnd_cleanup
+                    
+DWEnd_in1           ; We are already in window 1. 
+                    ; Adjust CurRow to be physical (absolute) before clearing WStartY.
+                    lda       V.CurRow,u
+                    adda      V.WStartY,u
+                    sta       V.CurRow,u
+
+DWEnd_cleanup       clr       V.SplitRow,u
+                    clr       V.WStartY,u
+                    lda       V.ScHeight,u
+                    sta       V.WHeight,u
+                    lda       #1
+                    sta       V.ActiveWin,u
+DWEnd_out           lbra      ResetHandler
 
 Do1B                cmpa      #$20                is it the window mode?
                     bne       IsIt21              branch if not
                     leax      Do1B20,pcr          else point to the vector
                     lbra      SetHandler          and set the handler
 IsIt21              cmpa      #$21                is it DWSelect?
-                    beq       DWSelect            branch if so
+                    lbeq      DWSelect            branch if so
 IsIt24              cmpa      #$24                is it DWEnd?
-                    beq       DWEnd               branch if so
+                    lbeq      DWEnd               branch if so
 IsIt30              cmpa      #$30                is it DefColr?
-                    beq       DefColr             branch if so
+                    lbeq      DefColr             branch if so
 IsIt60              cmpa      #$60                is it ChgForePal?
                     lbeq      ChgForePal          branch if so
 IsIt61              cmpa      #$61                is it ChgBackPal?
-                    beq       ChgBackPal          branch if so
+                    lbeq      ChgBackPal          branch if so
 IsIt62              cmpa      #$62                is it change to font 0?
-                    beq       ChgFont0            branch if so
+                    lbeq      ChgFont0            branch if so
 IsIt63              cmpa      #$63                is it change to font 1?
-                    beq       ChgFont1            branch if so
+                    lbeq      ChgFont1            branch if so
 IsIt32              cmpa      #$32                is it the foreground color code?
                     bne       IsIt33              branch if not
                     leax      FColor,pcr          else point to the vector

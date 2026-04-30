@@ -53,15 +53,16 @@ V.KeyDrvStat        equ       .
                     RMB       8
 
 V.EscParms          RMB       20
-* DWSet Parameters
-V.DWType            set       V.EscParms+0
-V.DWStartX          set       V.EscParms+1
-V.DWStartY          set       V.EscParms+2
-V.DWWidth           set       V.EscParms+3
-V.DWHeight          set       V.EscParms+4
-V.DWFore            set       V.EscParms+5
-V.DWBack            set       V.EscParms+6
-V.DWBorder          set       V.EscParms+7
+* DWSet Parameters (1B 20)
+* Used by DWSet handler to define screen split
+V.DWType            set       V.EscParms+0        Screen Type (STY): 1=40x30, 2=80x30, 3=40x60, 4=80x60
+V.DWStartX          set       V.EscParms+1        Starting X (CPX): IGNORED (Windows are full-width)
+V.DWStartY          set       V.EscParms+2        Starting Y (CPY): Used as SplitRow location
+V.DWWidth           set       V.EscParms+3        Window Width (SZX): IGNORED (Windows are full-width)
+V.DWHeight          set       V.EscParms+4        Window Height (SZY): Used as height of Window 1
+V.DWFore            set       V.EscParms+5        Foreground Color (PRN1)
+V.DWBack            set       V.EscParms+6        Background Color (PRN2)
+V.DWBorder          set       V.EscParms+7        Border Color (PRN3)
 
 
 
@@ -186,10 +187,14 @@ V.KSBuf             RMB       KBufSz
 V.ScWidth           RMB       1                   physical screen width
 V.ScHeight          RMB       1                   physical screen height
 V.SplitRow          RMB       1                   row where lower pane starts (height of upper)
+* Split pane boundaries:
+*   Upper pane (Window 0): Rows 0 to V.SplitRow-1
+*   Lower pane (Window 1): Rows V.SplitRow to V.ScHeight-1
 V.ActiveWin         RMB       1                   currently active window slot (0-1)
 V.WStartY           RMB       1                   active window start Y
 V.Slot0Stat         RMB       3                   CurRow, CurCol, FBCol for Slot 0
 V.Slot1Stat         RMB       3                   CurRow, CurCol, FBCol for Slot 1
+V.Slot1Hgt          RMB       1                   Stored height for Window 1
 
                     RMB       250-.
 V.Last              EQU       .
