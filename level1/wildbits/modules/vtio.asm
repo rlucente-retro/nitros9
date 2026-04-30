@@ -383,7 +383,7 @@ l@                  ldd       ,x++                get two bytes from the source
 * Clear memory at MAPADDR with the contents of D
 clr                 ldx       #MAPADDR
 l@                  std       ,x++
-                    cmpx      #MAPADDR+80x60      maximum possible space for text
+                    cmpx      #MAPADDR+80*60      maximum possible space for text
                     bne       l@
                     rts
 
