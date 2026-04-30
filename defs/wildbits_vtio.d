@@ -181,6 +181,16 @@ V.FONTNAME          RMB      33
 
 V.InBuf             RMB       KBufSz              the input buffer
 V.KSBuf             RMB       KBufSz
+
+* New split-window / status-line variables moved here to avoid shifting standard offsets
+V.ScWidth           RMB       1                   physical screen width
+V.ScHeight          RMB       1                   physical screen height
+V.SplitRow          RMB       1                   row where lower pane starts (height of upper)
+V.ActiveWin         RMB       1                   currently active window slot (0-1)
+V.WStartY           RMB       1                   active window start Y
+V.Slot0Stat         RMB       3                   CurRow, CurCol, FBCol for Slot 0
+V.Slot1Stat         RMB       3                   CurRow, CurCol, FBCol for Slot 1
+
                     RMB       250-.
 V.Last              EQU       .
 

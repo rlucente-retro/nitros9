@@ -288,8 +288,8 @@ InitDisplay         pshs      u                   save important registers
 
 * Put graphics into text mode.
                     ldx       #TXT.Base
-                    ldd       #80*256+60
-                    std       V.WWidth,u
+                    ldd       V.ScWidth,u         Get physical dimensions
+                    std       V.WWidth,u          Set initial window width/height to full screen
                     lda       #Mstr_Ctrl_Text_Mode_En enable text mode
                     sta       MASTER_CTRL_REG_L,x
                     clr       MASTER_CTRL_REG_H,x
@@ -306,7 +306,7 @@ InitDisplay         pshs      u                   save important registers
 l@                  tfr       d,x                 transfer it to X
                     stb       MAPADDR,x           store at $0000 off of X
                     stb       MAPADDR+$400,x      store at $0400 off of X
-                    stb       MAPADDR+$800,x      store at $0800 off of X
+                    stb       MAPADDR+$800,x      store at $0400 off of X
                     incb                          increment the counter
                     bne       l@                  loop until complete
 
@@ -349,6 +349,8 @@ initcursor          ldx       #TXT.Base
                     clrb
                     std       VKY_TXT_CURSOR_Y_REG_H,x
                     std       VKY_TXT_CURSOR_X_REG_H,x
+                    lda       V.WStartY,u         Get window start Y (initially 0)
+                    sta       VKY_TXT_CURSOR_Y_REG_L,x
                     lda       #'_
                     sta       VKY_TXT_CURSOR_CHAR_REG,x
 
@@ -379,11 +381,19 @@ l@                  ldd       ,x++                get two bytes from the source
                     rts                           return
 
 * Clear memory at MAPADDR with the contents of D.
-clr                 ldx       #MAPADDR
+clr                 pshs      d,y,x
+                    lda       V.ScWidth,u
+                    ldb       V.ScHeight,u
+                    mul                           D = Total screen size
+                    lsra                          Divide by 2 for std loop
+                    rorb
+                    tfr       d,y                 Y = Loop counter
+                    ldx       #MAPADDR
+                    puls      d                   Restore value to write
 l@                  std       ,x++
-                    cmpx      #MAPADDR+80*60     
+                    leay      -1,y
                     bne       l@
-                    rts
+                    puls      x,y,pc
 
 * Keyboard initialization  
 * NOTE: If we fail to find the 'keydrv' module, carry is returned set, but
@@ -447,6 +457,20 @@ Init                stu       D.KbdSta
                     clra                          set D..
                     clrb                          to $0000
                     std       V.CurRow,u          set the current row and column
+
+                    * Initial state for both slots: Row=0, Col=0, FBCol=$10
+                    std       V.Slot0Stat,u
+                    std       V.Slot1Stat,u
+                    lda       #$10                Default colors
+                    sta       V.Slot0Stat+2,u
+                    sta       V.Slot1Stat+2,u
+
+                    * Initialize split-screen / status-line variables
+                    ldd       #80*256+60          Physical screen dimensions
+                    std       V.ScWidth,u         (sta V.ScWidth,u / stb V.ScHeight,u)
+                    clr       V.SplitRow,u        No split by default (full-screen window 0)
+                    clr       V.ActiveWin,u       Window 0 is active
+                    clr       V.WStartY,u         Window 0 starts at row 0
                     
                     lbsr      InitDisplay         initialize the display
                     lbsr      InitSound           initialize the sound
