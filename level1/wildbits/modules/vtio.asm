@@ -288,7 +288,7 @@ InitDisplay         pshs      u                   save important registers
 
 * Put graphics into text mode.
                     ldx       #TXT.Base
-                    ldd       V.ScWidth,u         Get physical dimensions
+                    ldd       #80*256+60
                     std       V.WWidth,u          Set initial window width/height to full screen
                     lda       #Mstr_Ctrl_Text_Mode_En enable text mode
                     sta       MASTER_CTRL_REG_L,x
@@ -306,7 +306,7 @@ InitDisplay         pshs      u                   save important registers
 l@                  tfr       d,x                 transfer it to X
                     stb       MAPADDR,x           store at $0000 off of X
                     stb       MAPADDR+$400,x      store at $0400 off of X
-                    stb       MAPADDR+$800,x      store at $0400 off of X
+                    stb       MAPADDR+$800,x      store at $0800 off of X
                     incb                          increment the counter
                     bne       l@                  loop until complete
 
@@ -380,20 +380,12 @@ l@                  ldd       ,x++                get two bytes from the source
                     bne       l@                  branch if not
                     rts                           return
 
-* Clear memory at MAPADDR with the contents of D.
-clr                 pshs      d,y,x
-                    lda       V.ScWidth,u
-                    ldb       V.ScHeight,u
-                    mul                           D = Total screen size
-                    lsra                          Divide by 2 for std loop
-                    rorb
-                    tfr       d,y                 Y = Loop counter
-                    ldx       #MAPADDR
-                    puls      d                   Restore value to write
+* Clear memory at MAPADDR with the contents of D
+clr                 ldx       #MAPADDR
 l@                  std       ,x++
-                    leay      -1,y
+                    cmpx      #MAPADDR+80x60      maximum possible space for text
                     bne       l@
-                    puls      x,y,pc
+                    rts
 
 * Keyboard initialization  
 * NOTE: If we fail to find the 'keydrv' module, carry is returned set, but
