@@ -380,7 +380,7 @@ l@                  ldd       ,x++                get two bytes from the source
                     bne       l@                  branch if not
                     rts                           return
 
-* Clear memory at MAPADDR with the contents of D
+* Clear memory at MAPADDR with the contents of D.
 clr                 ldx       #MAPADDR
 l@                  std       ,x++
                     cmpx      #MAPADDR+80*60      maximum possible space for text
