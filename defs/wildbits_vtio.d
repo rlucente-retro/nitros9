@@ -56,10 +56,10 @@ V.EscParms          RMB       20
 * DWSet Parameters (1B 20)
 * Used by DWSet handler to define screen split
 V.DWType            set       V.EscParms+0        Screen Type (STY): 1=40x30, 2=80x30, 3=40x60, 4=80x60
-V.DWStartX          set       V.EscParms+1        Starting X (CPX): IGNORED (Windows are full-width)
+V.DWStartX          set       V.EscParms+1        Starting X (CPX) (currently ignored)
 V.DWStartY          set       V.EscParms+2        Starting Y (CPY): Used as SplitRow location
-V.DWWidth           set       V.EscParms+3        Window Width (SZX): IGNORED (Windows are full-width)
-V.DWHeight          set       V.EscParms+4        Window Height (SZY): Used as height of Window 1
+V.DWWidth           set       V.EscParms+3        Window Width (SZX) (currently ignored)
+V.DWHeight          set       V.EscParms+4        Window Height (SZY) (currently ignored)
 V.DWFore            set       V.EscParms+5        Foreground Color (PRN1)
 V.DWBack            set       V.EscParms+6        Background Color (PRN2)
 V.DWBorder          set       V.EscParms+7        Border Color (PRN3)
