@@ -349,8 +349,6 @@ initcursor          ldx       #TXT.Base
                     clrb
                     std       VKY_TXT_CURSOR_Y_REG_H,x
                     std       VKY_TXT_CURSOR_X_REG_H,x
-                    lda       V.WStartY,u         Get window start Y (initially 0)
-                    sta       VKY_TXT_CURSOR_Y_REG_L,x
                     lda       #'_
                     sta       VKY_TXT_CURSOR_CHAR_REG,x
 
@@ -1056,13 +1054,13 @@ Do1B20TTXXYYWWHHFFBB
 ;;; Parameters: STY CPX CPY SZX SZY PRN1 PRN2 PRN3
 ;;;
 ;;; DESIGN NOTE: This implementation only supports a vertical split (top/bottom panes).
-;;; Windows are always full physical width; CPX and SZX are ignored.
+;;; Windows are always full physical width; CPX, SZX, and SZY are currently ignored.
 ;;;
 ;;; STY = screen type: $01 = 40x30, $02 = 80x30, $03 = 40x60, $04 = 80x60.
-;;; CPX = (IGNORED)
+;;; CPX = starting position X (currently ignored).
 ;;; CPY = Starting Y position. This becomes the SplitRow (boundary line).
-;;; SZX = (IGNORED)
-;;; SZY = Window Height. This is the height of the active lower pane (Window 1).
+;;; SZX = width starting at X (currently ignored).
+;;; SZY = Window Height (currently ignored).
 ;;; PRN1 = foreground color.
 ;;; PRN2 = background color.
 ;;; PRN3 = border color.
@@ -1070,7 +1068,7 @@ Do1B20TTXXYYWWHHFFBB
 ;;; OPERATION:
 ;;; 1. Clears the entire physical screen.
 ;;; 2. Defines Window 0 (Upper): Rows 0 to CPY-1.
-;;; 3. Defines Window 1 (Lower): Rows CPY to CPY+SZY-1.
+;;; 3. Defines Window 1 (Lower): Rows CPY to ScHeight-1.
 ;;; 4. Window 1 is activated by default. Cursors for both panes are reset to (0,0).
 DWSet               lda       V.DWType,u
                     sta       V.ScTyp,u
@@ -1095,10 +1093,8 @@ setcols@            lda       V.DWFore,u
                     lbsr      SetBorderColor
 
 * Clear full physical screen first
-                    lda       V.ScWidth,u
-                    sta       V.WWidth,u
-                    lda       V.ScHeight,u
-                    sta       V.WHeight,u
+                    ldd       V.ScWidth,u         efficiently copy width and height
+                    std       V.WWidth,u
                     clr       V.WStartY,u
                     lbsr      ClrScrn
 
@@ -1107,21 +1103,22 @@ setcols@            lda       V.DWFore,u
 * Lower pane (Window 1): Rows V.SplitRow to V.ScHeight-1
                     lda       V.ScWidth,u
                     sta       V.WWidth,u
-                    lda       V.DWHeight,u
+                    lda       V.ScHeight,u
+                    suba      V.DWStartY,u        ; Window 1 height = Total - Split
                     sta       V.WHeight,u
-                    sta       V.Slot1Hgt,u        store height for Window 1
                     lda       V.DWStartY,u
                     sta       V.WStartY,u
                     sta       V.SplitRow,u
                     lda       #1
                     sta       V.ActiveWin,u
 
-* Initialize slot states (both at 0,0)
-                    ldb       V.FBCol,u
+* Initialize slot states (both cursors at 0,0)
                     clra
+                    clrb
                     std       V.Slot0Stat,u
-                    stb       V.Slot0Stat+2,u
                     std       V.Slot1Stat,u
+                    ldb       V.FBCol,u
+                    stb       V.Slot0Stat+2,u
                     stb       V.Slot1Stat+2,u
 
                     lbsr      CurHome             ensure cursor is at 0,0 for active window
@@ -1284,7 +1281,8 @@ Do1B21_save_done    ldb       V.CurRow,u
                     ; Select Window 1
                     lda       V.SplitRow,u
                     sta       V.WStartY,u
-                    lda       V.Slot1Hgt,u        restore Window 1 height
+                    lda       V.ScHeight,u        ; Recalculate full remainder
+                    suba      V.SplitRow,u
                     sta       V.WHeight,u
                     leax      V.Slot1Stat,u
                     bra       Do1B21_rest_done
