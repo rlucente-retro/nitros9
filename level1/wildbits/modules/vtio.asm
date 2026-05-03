@@ -582,13 +582,14 @@ Write
                     ldx       V.EscVect,u         get the escape vector address
                     jsr       ,x                  branch to it
                     pshs      d                   save D since we modify it here
-                    lda       V.CurCol,u          get the current row in A
                     ldx       #TXT.Base
+                    lda       V.CurCol,u          get the current column in A
                     sta       VKY_TXT_CURSOR_X_REG_L,x
-                    lda       V.CurRow,u          get the current row in A
+                    lda       V.CurRow,u          get the current relative row in A
+                    adda      V.WStartY,u         convert to physical row
                     sta       VKY_TXT_CURSOR_Y_REG_L,x
-                    ldb       V.WWidth,u          and the current column in B
-                    mul                           get the product
+                    ldb       V.WWidth,u          get the window width
+                    mul                           get the product (PhysicalRow * Width)
                     addb      V.CurCol,u          add it to the current column
                     adca      #0                  add in the carry in A
                     ldx       #G.ScrStart         point to the start of the screen
@@ -598,7 +599,8 @@ Write
 DefaultHandler      cmpa      #C$SPAC             is the character a space or greater?
                     lbcs      ChkESC              branch if not; go check for escape codes
 RawWrite            pshs      a                   else save the character to write
-                    lda       V.CurRow,u          get the current row
+                    lda       V.CurRow,u          get the current relative row
+                    adda      V.WStartY,u         convert to physical row
                     ldb       V.WWidth,u          and the number of columns
                     mul                           calculate the row we should be on
                     addb      V.CurCol,u          add in the column
@@ -634,15 +636,21 @@ incrow              inca                          and we increment the row
                     blt       ok                  branch if we're less than (don't clear the new line we're on)
 SCROLL              equ       1
                     ifne      SCROLL
-                    deca                          set A to V.WHeight - 1
-                    ldx       #G.ScrStart         get the start of the screen memory
-                    pshs      d                   save D
-                    ldd       V.WWidth,u          get screen width in A and height in B
-                    decb                          decrement height by 1
-                    mul                           get the product (bytes to copy)
-                    tfr       d,y                 set Y to the size of the screen minus the last row
-                    puls      d                   restore D
-                    pshs      cc,d                save off the row/column and CC
+                    deca                          set A to V.WHeight - 1 (relative last row)
+                    pshs      a                   save relative last row
+                    lda       V.WStartY,u
+                    ldb       V.WWidth,u
+                    mul                           D = offset to window top
+                    ldx       #G.ScrStart
+                    leax      d,x                 X points to physical start of window
+                    lda       V.WHeight,u
+                    deca
+                    ldb       V.WWidth,u          A = (H-1), B = Width
+                    mul
+                    tfr       d,y                 Y = total bytes to copy
+                    puls      a                   restore relative last row
+                    beq       scroll_done@        nothing to copy if height is 1
+                    pshs      cc,d                save off relative last row and CC
                     orcc      #IntMasks           mask interrupts
                     lda       MAPSLOT             get the current MMU slot
                     pshs      a                   save it on the stack
@@ -661,6 +669,7 @@ scroll_loop1@       lda       #$C2                get the text block #
                     puls      a                   recover the original slot
                     sta       MAPSLOT             and restore it
                     puls      cc,d                recover CC and the row/column
+scroll_done@        nop                           label for skipping scroll
                     else
                     clra                          just clear the row (goes to top)
                     endc
@@ -729,14 +738,14 @@ DCodeTbl            fdb       NoOp-DCodeTbl       $00:no-op (null)
 ;;; Code: 03
 EraseLine           clrb                          start erasing at column 0
                     lda       V.CurRow,u          of the current row
-* Entry:  A = The row to erase. 
+* Entry:  A = The relative row to erase.
 *         B = The column to start erasing on.
-EraseLineCore       pshs      b                   save the number of columns
+EraseLineCore       pshs      b                   save the column to start erasing on
+                    adda      V.WStartY,u         convert relative row to physical
                     ldb       V.WWidth,u
                     mul                           get the product
                     addb      ,s                  add the column to start erasing from
-                    adca      #0                  consider the carry
-                    ldx       #G.ScrStart         get the screen base address
+                    adca      #0                  consider the carry                    ldx       #G.ScrStart         get the screen base address
                     leax      d,x                 move X to the current row
                     lda       V.WWidth,u          get the number of columns
                     suba      ,s+                 subtract the column to start erasing from
