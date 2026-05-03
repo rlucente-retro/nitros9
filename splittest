@@ -1,0 +1,51 @@
+* Comprehensive Split Screen Test for Wildbits VTIO
+echo Phase 1: 80x30 Mode Tests
+sleep 120
+* 80x30 Split at Row 1
+display 1b 20 02 00 01 50 1d 07 00 00
+echo LOWER PANE ACTIVE (80x30)
+display 1b 21 00
+echo UPPER PANE ACTIVE (80x30) ! display
+display 1b 21 01
+echo BACK IN LOWER PANE
+sleep 120
+display 1b 24
+echo SPLIT ENDED - COORDINATES NORMALIZED
+sleep 120
+* 80x30 Split at Row 5
+display 1b 20 02 00 05 50 19 07 00 00
+echo LOWER PANE ACTIVE (ROW 5 SPLIT)
+display 1b 21 00
+echo UPPER PANE ACTIVE (5 LINES) ! display
+sleep 120
+display 1b 24
+echo SPLIT ENDED FROM WINDOW 0
+sleep 120
+display 0c
+echo Phase 2: 40x30 Mode Tests
+sleep 120
+* 40x30 Split at Row 1
+display 1b 20 01 00 01 28 1d 07 00 00
+echo LOWER PANE ACTIVE (40x30)
+display 1b 21 00
+echo UPPER PANE ACTIVE (40x30) ! display
+display 1b 21 01
+echo BACK IN LOWER PANE
+sleep 120
+display 1b 24
+echo SPLIT ENDED - COORDINATES NORMALIZED
+sleep 120
+* 40x30 Split at Row 5
+display 1b 20 01 00 05 28 19 07 00 00
+echo LOWER PANE ACTIVE (ROW 5 SPLIT)
+display 1b 21 00
+echo UPPER PANE ACTIVE (5 LINES) ! display
+sleep 120
+display 1b 24
+echo SPLIT ENDED FROM WINDOW 0
+sleep 120
+display 0c
+echo Phase 3: Final Restoration
+sleep 120
+display 1b 20 02 00 00 50 1e 07 01 00
+echo TEST COMPLETE - 80x30 WHITE ON RED

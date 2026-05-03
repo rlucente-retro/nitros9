@@ -1101,11 +1101,10 @@ setcols@            lda       V.DWFore,u
 * Initialize window variables
 * Upper pane (Window 0): Rows 0 to V.SplitRow-1
 * Lower pane (Window 1): Rows V.SplitRow to V.ScHeight-1
-                    lda       V.ScWidth,u
+                    ldd       V.ScWidth,u         a is screen width, b is screen height
                     sta       V.WWidth,u
-                    lda       V.ScHeight,u
-                    suba      V.DWStartY,u        ; Window 1 height = Total - Split
-                    sta       V.WHeight,u
+                    subb      V.DWStartY,u        Window 1 height = Total - Split
+                    stb       V.WHeight,u
                     lda       V.DWStartY,u
                     sta       V.WStartY,u
                     sta       V.SplitRow,u
@@ -1260,17 +1259,14 @@ Do1B21              tst       V.SplitRow,u        is there a split?
                     ; Save current state
                     pshs      a
                     lda       V.ActiveWin,u
-                    tsta
                     beq       Do1B21_save0
                     leax      V.Slot1Stat,u
                     bra       Do1B21_save_done
 Do1B21_save0        leax      V.Slot0Stat,u
-Do1B21_save_done    ldb       V.CurRow,u
-                    stb       ,x
-                    ldb       V.CurCol,u
-                    stb       1,x
+Do1B21_save_done    ldd       V.CurRow,u          save cursor row and col
+                    std       ,x++
                     ldb       V.FBCol,u
-                    stb       2,x
+                    stb       ,x
                     puls      a
                     
                     ; Switch window
@@ -1292,11 +1288,9 @@ Do1B21_sel0         clr       V.WStartY,u
                     sta       V.WHeight,u
                     leax      V.Slot0Stat,u
                     
-Do1B21_rest_done    ldb       ,x
-                    stb       V.CurRow,u
-                    ldb       1,x
-                    stb       V.CurCol,u
-                    ldb       2,x
+Do1B21_rest_done    ldd       ,x++
+                    std       V.CurRow,u
+                    ldb       ,x
                     stb       V.FBCol,u
 Do1B21_out          lbra      ResetHandler
 
@@ -1315,18 +1309,16 @@ Do1B21_out          lbra      ResetHandler
 DWEnd               tst       V.SplitRow,u        is there a split?
                     beq       DWEnd_out           no, nothing to do
                     
-                    lda       V.ActiveWin,u       which window is active?
-                    tsta
+                    tst       V.ActiveWin,u       which window is active?
                     bne       DWEnd_in1           already in window 1
                     
                     ; We are ending the split while in window 0.
                     ; Restore Window 1's saved state so we return to where we were.
                     leax      V.Slot1Stat,u
+                    ldd       ,x++                ; A=Row, B=Col
+                    adda      V.SplitRow,u        ; Convert Row to physical
+                    std       V.CurRow,u          ; update row and col
                     ldb       ,x
-                    stb       V.CurRow,u
-                    ldb       1,x
-                    stb       V.CurCol,u
-                    ldb       2,x
                     stb       V.FBCol,u
                     bra       DWEnd_cleanup
                     
