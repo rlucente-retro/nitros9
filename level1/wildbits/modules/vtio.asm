@@ -636,42 +636,41 @@ incrow              inca                          and we increment the row
                     blt       ok                  branch if we're less than (don't clear the new line we're on)
 SCROLL              equ       1
                     ifne      SCROLL
-                    deca                          set A to V.WHeight - 1 (relative last row)
-                    pshs      a                   save relative last row
-                    lda       V.WStartY,u
+                    pshs      d                   save current row/col (D)
+                    lda       V.WHeight,u         get window height
+                    deca                          subtract 1 for last row
+                    sta       1,s                 overwrite saved A with last row (relative)
+                    beq       scroll_skip@        nothing to copy if height is 1
                     ldb       V.WWidth,u
-                    mul                           D = offset to window top
-                    ldx       #G.ScrStart
-                    leax      d,x                 X points to physical start of window
-                    lda       V.WHeight,u
-                    deca
-                    ldb       V.WWidth,u          A = (H-1), B = Width
-                    mul
-                    tfr       d,y                 Y = total bytes to copy
-                    puls      a                   restore relative last row
-                    beq       scroll_done@        nothing to copy if height is 1
-                    pshs      cc,d                save off relative last row and CC
+                    mul                           D = (H-1) * W (bytes to copy)
+                    tfr       d,y                 Y = bytes to copy
+                    lda       V.WStartY,u         get physical start row
+                    ldb       V.WWidth,u
+                    mul                           D = physical offset to top
+                    ldx       #G.ScrStart         get screen base
+                    leax      d,x                 X = physical start of window
+                    pshs      cc                  save CC
                     orcc      #IntMasks           mask interrupts
-                    lda       MAPSLOT             get the current MMU slot
-                    pshs      a                   save it on the stack
-scroll_loop1@       lda       #$C2                get the text block #
-                    sta       MAPSLOT             and map it in
+                    lda       MAPSLOT             get current MMU slot
+                    pshs      a                   save it
+scroll_loop1@       lda       #$C2                get text block
+                    sta       MAPSLOT             map it
+                    ldb       V.WWidth,u
+                    ldd       b,x                 get two bytes from next line
+                    std       ,x                  store on this line
+                    lda       #$C3                get attributes block
+                    sta       MAPSLOT             map it
                     ldb       V.WWidth,u
                     ldd       b,x
-                    std       ,x                  store on this row
-                    lda       #$C3                get the text attributes block #
-                    sta       MAPSLOT             and map it in
-                    ldb       V.WWidth,u          get the bytes at the width
-                    ldd       b,x
-                    std       ,x++                and store it
-                    leay      -2,y                decrement Y
-                    bne       scroll_loop1@       branch if not 0
-                    puls      a                   recover the original slot
-                    sta       MAPSLOT             and restore it
-                    puls      cc,d                recover CC and the row/column
-scroll_done@        nop                           label for skipping scroll
+                    std       ,x++                store and move to next two chars
+                    leay      -2,y                decrement byte count
+                    bne       scroll_loop1@       loop until done
+                    puls      a                   restore MMU slot
+                    sta       MAPSLOT
+                    puls      cc                  restore CC
+scroll_skip@        puls      d                   restore current row/col (D)
                     else
-                    clra                          just clear the row (goes to top)
+                    clra                          just clear the row
                     endc
 * clear line
 clrline             std       V.CurRow,u          save the current row/column value
@@ -745,7 +744,8 @@ EraseLineCore       pshs      b                   save the column to start erasi
                     ldb       V.WWidth,u
                     mul                           get the product
                     addb      ,s                  add the column to start erasing from
-                    adca      #0                  consider the carry                    ldx       #G.ScrStart         get the screen base address
+                    adca      #0                  consider the carry
+                    ldx       #G.ScrStart         get the screen base address
                     leax      d,x                 move X to the current row
                     lda       V.WWidth,u          get the number of columns
                     suba      ,s+                 subtract the column to start erasing from
@@ -890,16 +890,16 @@ Do05XX              cmpa      #$20
                     beq       cchar@
                     cmpa      #$23
                     beq       crate@
-                    bra       ResetHandler
+                    lbra      ResetHandler
 crate@              leax      CurRate,pcr
                     bra       c@
 cchar@              leax      CurChar,pcr
                     bra       c@
-                    bne       ResetHandler
+                    lbne      ResetHandler
 hide@               lbsr      CurOff
-                    bra       ResetHandler
+                    lbra      ResetHandler
 show@               lbsr      CurOn
-                    bra       ResetHandler
+                    lbra      ResetHandler
 
 ;;; CurRate
 ;;;
@@ -921,7 +921,7 @@ CurRate             ldx       #TXT.Base
                     pshs      a                   save the value to OR in on the stack
                     orb       ,s+                 OR it in with the contents of the register
                     stb       VKY_TXT_CURSOR_CTRL_REG,x save it to the hardware
-                    bra       ResetHandler        reset the handler
+                    lbra      ResetHandler        reset the handler
 
 ;;; CurChar
 ;;;
@@ -934,7 +934,7 @@ CurRate             ldx       #TXT.Base
 ;;; CHR can be any character from 0 - 255.
 CurChar             ldx       #TXT.Base
                     sta       VKY_TXT_CURSOR_CHAR_REG,x
-                    bra       ResetHandler
+                    lbra      ResetHandler
 
 NoOp
                     rts
@@ -1016,7 +1016,7 @@ DoReverse
                     lsla                          upper nibble
                     ora       ,s+
                     sta       V.FBCol,u
-                    bra       ResetHandler
+                    lbra      ResetHandler
 
 EscHandler          leax      Do1B,pcr            point to the handler to the 2nd character
 SetHandler          stx       V.EscVect,u         store it in the vector
