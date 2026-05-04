@@ -1,0 +1,29 @@
+Command,A,B,X,Y,V.CurRow,V.CurCol,V.WStartY,V.WHeight,V.FBCol,Note
+Initial,0,0,0,0,0,0,0,30,71,Initial state
+display 1b 20 02 00 01 50 1d 07 00 00,02,0,0,0,0,0,1,29,70,SplitRow=1. W1 Active.
+display 1b 21 00,0,0,Slot1,0,0,0,0,1,70,W0 Active. WStartY=0. WHeight=1.
+echo W0_1LINE,?,0,?,0,1,0,0,1,70,Row 0->1. Trigger SCROLL.
+SCROLL: pshs d,1,0,?,0,1,0,0,1,70,Stack: [1, 0]
+SCROLL: sta ,s,0,0,?,0,1,0,0,1,70,A=1-1=0. Stack: [0, 0]
+SCROLL: beq scroll_skip@,0,0,?,0,1,0,0,1,70,Jump to scroll_skip.
+SCROLL: puls d,0,0,?,0,0,0,0,1,70,CurRow=0. CurCol=0.
+clrline,0,0,?,0,0,0,0,1,70,Erase physical row 0.
+echo SCROLL_SKIP,?,0,?,0,1,0,0,1,70,Row 0->1. Trigger SCROLL again.
+display 1b 20 02 00 05 50 19 07 00 00,02,0,0,0,0,0,5,25,70,SplitRow=5. W1 Active.
+display 1b 21 00,0,0,Slot1,0,0,0,0,5,70,W0 Active. WStartY=0. WHeight=5.
+display 1b 32 01 1b 33 00,01,00,?,0,0,0,0,5,10,FBCol=$10 (Blue on Black)
+echo L1..L4,?,0,?,0,4,0,0,5,10,CurRow=4
+echo L5_SCROLL,?,0,?,0,5,0,0,5,10,CurRow=4->5. Trigger SCROLL.
+SCROLL: pshs d,5,0,?,0,5,0,0,5,10,Stack: [5, 0]
+SCROLL: sta ,s,4,0,?,0,5,0,0,5,10,A=5-1=4. Stack: [4, 0]
+SCROLL: Copy 4 lines,?,80,MAP,320,5,0,0,5,10,Copy lines 1-4 to 0-3.
+SCROLL: puls d,4,0,?,0,4,0,0,5,10,CurRow=4. CurCol=0.
+clrline,4,0,?,0,4,0,0,5,10,Erase physical row 4.
+display 01 04 4e,04,4e,?,0,4,78,0,5,10,Set cursor to (4, 78)
+echo WRAP_TEST_0123456789,?,0,?,0,5,10,0,5,10,Writes "WRAP_TES" at (4,78). Wraps at Col 80.
+RawWrite Wrap: incrow,05,?,0,?,5,0,0,5,10,CurRow=4->5. Trigger SCROLL.
+SCROLL: puls d,4,0,?,0,4,0,0,5,10,CurRow=4. CurCol=0.
+RawWrite Finish,?,0,?,0,4,10,0,5,10,Writes "T_0123456789" at (4,0). CurCol=10.
+display 1b 21 01,01,?,Slot0,?,0,0,5,25,70,W1 Active. W0 state (4,10,$10) saved.
+display 1b 21 00,00,?,Slot1,?,4,10,0,5,10,W0 Active. W0 state restored.
+display 1b 24,?,0,Slot1,?,9,0,0,30,70,DWEnd: W0 active. Restore W1(0,0)+Split(5)=9. CurRow=9.

@@ -1,0 +1,24 @@
+Command,A,B,X,Y,V.CurRow,V.CurCol,V.WStartY,V.WHeight,V.FBCol,Note
+Initial,0,0,0,0,0,0,0,30,71,Initial state
+display 1b 20 02 00 1d 50 01 07 00 00,02,0,0,0,0,0,29,1,70,SplitRow=29. W1 Active. WStartY=29. WHeight=1.
+echo W1_1LINE,?,0,?,0,1,0,29,1,70,Row 0->1. Trigger SCROLL.
+SCROLL: pshs d,1,0,?,0,1,0,29,1,70,Stack: [1, 0]
+SCROLL: sta ,s,0,0,?,0,1,0,29,1,70,A=1-1=0. Stack: [0, 0]
+SCROLL: beq scroll_skip@,0,0,?,0,1,0,29,1,70,Jump to scroll_skip.
+SCROLL: puls d,0,0,?,0,0,0,29,1,70,CurRow=0. CurCol=0.
+clrline,0,0,?,0,0,0,29,1,70,Erase physical row 0+29=29.
+echo SCROLL_SKIP,?,0,?,0,1,0,29,1,70,Row 0->1. Trigger SCROLL again.
+display 1b 20 02 00 0a 50 14 07 00 00,02,0,0,0,0,0,10,20,70,SplitRow=10. W1 Active. WStartY=10. WHeight=20.
+display 01 02 05,02,05,?,0,2,5,10,20,70,Set cursor to (2, 5)
+echo ROW2_COL5,?,0,?,0,3,0,10,20,70,
+display 1b 03,02,00,?,0,2,0,10,20,70,Erase relative row 2 (physical row 12).
+display 01 12 4e,12,4e,?,0,18,78,10,20,70,Set cursor to (18, 78)
+echo WRAP_TO_SCROLL_0123456789,?,0,?,0,19,0,10,20,70,Wraps at Col 80.
+RawWrite Wrap: incrow,13,?,0,?,19,0,10,20,70,CurRow=18->19. (Note: WHeight=20, so 19 is ok).
+echo FILL_TO_SCROLL_REPEAT,?,0,?,0,20,0,10,20,70,CurRow=19->20. Trigger SCROLL.
+SCROLL: pshs d,20,0,?,0,20,0,10,20,70,Stack: [20, 0]
+SCROLL: sta ,s,19,0,?,0,20,0,10,20,70,A=20-1=19. Stack: [19, 0]
+SCROLL: puls d,19,0,?,0,19,0,10,20,70,CurRow=19. CurCol=0.
+clrline,19,0,?,0,19,0,10,20,70,Erase physical row 19+10=29.
+display 1b 24,19,0,?,0,29,0,0,30,70,DWEnd: W1 active. CurRow=19+10=29. WHeight=30.
+echo W1_ENHANCED_DONE,?,0,?,0,30,0,0,30,70,CurRow=29->30. Trigger Full Screen SCROLL.

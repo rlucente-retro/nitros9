@@ -639,7 +639,7 @@ SCROLL              equ       1
                     pshs      d                   save current row/col (D)
                     lda       V.WHeight,u         get window height
                     deca                          subtract 1 for last row
-                    sta       1,s                 overwrite saved A with last row (relative)
+                    sta       ,s                  overwrite saved A with last row (relative)
                     beq       scroll_skip@        nothing to copy if height is 1
                     ldb       V.WWidth,u
                     mul                           D = (H-1) * W (bytes to copy)
