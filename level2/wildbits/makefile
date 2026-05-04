@@ -22,7 +22,8 @@ FONTS		= $(shell $(CD) sys/fonts; make --no-print-directory showobjs)
 BACKGROUNDS	= $(shell $(CD) sys/backgrounds; make --no-print-directory showobjs)
 STARTUP		= startup
 SCRIPTS	    = $(shell $(CD) ../../level1/wildbits/scripts; echo *)
-TESTS	    = $(shell $(CD) ../../level1/wildbits/tests; echo *)
+TESTS_L1    = $(shell $(CD) ../../level1/wildbits/tests; echo *)
+TESTS_L2    = $(shell $(CD) tests; echo *)
 SYSGO		= sysgo
 
 DSKSD_K2		= $(DISTROVER)k2_sd.dsk
@@ -111,7 +112,8 @@ $(DSKSD_K2):
 	$(MAKDIR) $@,SCRIPTS
 	$(foreach file,$(SCRIPTS),$(CPL) ../../level1/wildbits/scripts/$(file) $@,SCRIPTS;)
 	$(MAKDIR) $@,TESTS
-	$(foreach file,$(TESTS),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L1),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L2),$(CPL) tests/$(file) $@,TESTS;)
 	$(MAKDIR) $@,FEU
 	$(OS9COPY) -l FEU/startup_s0 $@,FEU/startup
 
@@ -155,7 +157,8 @@ $(DSKDW_K2):
 	$(MAKDIR) $@,SCRIPTS
 	$(foreach file,$(SCRIPTS),$(CPL) ../../level1/wildbits/scripts/$(file) $@,SCRIPTS;)
 	$(MAKDIR) $@,TESTS
-	$(foreach file,$(TESTS),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L1),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L2),$(CPL) tests/$(file) $@,TESTS;)
 	$(MAKDIR) $@,FEU
 	$(OS9COPY) -l FEU/startup_x0 $@,FEU/startup
 
@@ -199,7 +202,8 @@ $(DSKSD_K):
 	$(MAKDIR) $@,SCRIPTS
 	$(foreach file,$(SCRIPTS),$(CPL) ../../level1/wildbits/scripts/$(file) $@,SCRIPTS;)
 	$(MAKDIR) $@,TESTS
-	$(foreach file,$(TESTS),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L1),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L2),$(CPL) tests/$(file) $@,TESTS;)
 	$(MAKDIR) $@,FEU
 	$(OS9COPY) -l FEU/startup_s0 $@,FEU/startup
 
@@ -243,7 +247,8 @@ $(DSKDW_K):
 	$(MAKDIR) $@,SCRIPTS
 	$(foreach file,$(SCRIPTS),$(CPL) ../../level1/wildbits/scripts/$(file) $@,SCRIPTS;)
 	$(MAKDIR) $@,TESTS
-	$(foreach file,$(TESTS),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L1),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L2),$(CPL) tests/$(file) $@,TESTS;)
 	$(MAKDIR) $@,FEU
 	$(OS9COPY) -l FEU/startup_x0 $@,FEU/startup
 
@@ -288,7 +293,8 @@ $(DSKSD_JR):
 	$(MAKDIR) $@,SCRIPTS
 	$(foreach file,$(SCRIPTS),$(CPL) ../../level1/wildbits/scripts/$(file) $@,SCRIPTS;)
 	$(MAKDIR) $@,TESTS
-	$(foreach file,$(TESTS),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L1),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L2),$(CPL) tests/$(file) $@,TESTS;)
 	$(MAKDIR) $@,FEU
 	$(OS9COPY) -l FEU/startup_s0 $@,FEU/startup
 	
@@ -333,7 +339,8 @@ $(DSKDW_JR):
 	$(MAKDIR) $@,SCRIPTS
 	$(foreach file,$(SCRIPTS),$(CPL) ../../level1/wildbits/scripts/$(file) $@,SCRIPTS;)
 	$(MAKDIR) $@,TESTS
-	$(foreach file,$(TESTS),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L1),$(CPL) ../../level1/wildbits/tests/$(file) $@,TESTS;)
+	$(foreach file,$(TESTS_L2),$(CPL) tests/$(file) $@,TESTS;)
 	$(MAKDIR) $@,FEU
 	$(OS9COPY) -l FEU/startup_x0 $@,FEU/startup
 

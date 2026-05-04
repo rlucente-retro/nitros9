@@ -18,3 +18,5 @@ buildinfo
 bootfile
 kerneltrack
 *.dsk
+*.csv
+display.txt
