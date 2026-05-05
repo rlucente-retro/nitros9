@@ -6,8 +6,8 @@ display 1b 20 02 00 19 50 05 07 00 00
 sleep 120
 * W1 is active by default
 * Test 1: Color and Scrolling
-* Set colors: White on Green ($27)
-display 1b 32 07 1b 33 02
+* Set colors: White on Green (Wildbits: FG=1, BG=5)
+display 1b 32 01 1b 33 05
 sleep 120
 echo W1 WHITE ON GREEN
 sleep 120
@@ -28,7 +28,8 @@ sleep 120
 display 1b 20 02 00 1d 50 01 07 00 00
 sleep 120
 * W1 active by default. Use display to avoid scroll.
-display 1b 32 0e 1b 33 04
+* Yellow on Red (Wildbits: FG=7, BG=2)
+display 1b 32 07 1b 33 02
 sleep 120
 display /YELLOW ON RED STATUS LINE/
 sleep 120

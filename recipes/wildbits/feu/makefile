@@ -125,10 +125,13 @@ f0.dsk: startup $(addprefix $(MODDIR)/,$(F0_CMDS))
 	$(foreach file,$(FEU_FILES),$(OS9COPY) -l $(file) $@,FEU)
 
 startup:
-	echo "display 1b 61 1 ff 0 0 ff 5 22 f0 1b 20 2 0 0 50 18 0 1 0 1b 32 7" > $@
+	echo "display 1b 24" > $@
+	echo "display 1b 61 1 ff 0 0 ff 5 22 f0" >> $@
+	echo "display 1b 20 2 0 5 50 19 0 1 0 1b 21 0 1b 32 7" >> $@
 	echo "echo FEU - First Execution Unit" >> $@
 	echo "echo Build date:" `date` >> $@
 	echo "wbinfo" >> $@
+	echo "display 1b 21 1 1b 32 7" >> $@
 	echo "chd .../feu" >> $@
 	echo "pick -pFEU: main.pick</1" >> $@
 

@@ -9,8 +9,8 @@ sleep 120
 display 1b 21 00
 sleep 120
 * Test 1: Color and Scrolling
-* Set colors: Yellow on Blue ($41)
-display 1b 32 0e 1b 33 01
+* Set colors: Yellow on Blue (Wildbits: FG=7, BG=6)
+display 1b 32 07 1b 33 06
 sleep 120
 echo W0 YELLOW ON BLUE
 sleep 120
