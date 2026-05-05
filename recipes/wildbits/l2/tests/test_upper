@@ -4,9 +4,9 @@ display 1b 20 02 00 01 50 1d 07 00 00
 sleep 120
 display 1b 21 00
 sleep 120
-echo W0_1LINE
+display /W0_1LINE/
 sleep 120
-echo SCROLL_SKIP
+display /SCROLL_SKIP/
 sleep 120
 * Test Case 2: Standard 5-line Upper Pane (Split at Row 5)
 display 1b 20 02 00 05 50 19 07 00 00
