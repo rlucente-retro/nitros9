@@ -1,49 +1,57 @@
-* Enhanced Test for Upper Display Pane (Window 0)
-* Test Case 1: Minimal 1-line Upper Pane (Split at Row 1)
-display 1b 20 02 00 01 50 1d 07 00 00
+* Final Comprehensive Test for Upper Display Pane (Window 0)
+echo STARTING UPPER PANE TEST
 sleep 120
-display 1b 21 00
-sleep 120
-display /W0_1LINE/
-sleep 120
-display /SCROLL_SKIP/
-sleep 120
-* Test Case 2: Standard 5-line Upper Pane (Split at Row 5)
+* 80x30 Mode, Split at Row 5. W0=5 lines, W1=25 lines.
+* DWSet: 1B 20 02 00 05 50 19 07 00 00
 display 1b 20 02 00 05 50 19 07 00 00
 sleep 120
+* Select W0
 display 1b 21 00
 sleep 120
-* Verify Color State preservation
-display 1b 32 01 1b 33 00
+* Test 1: Color and Scrolling
+* Set colors: Yellow on Blue ($41)
+display 1b 32 0e 1b 33 01
+echo W0 YELLOW ON BLUE
+echo LINE 1
+echo LINE 2
+echo LINE 3
+echo LINE 4
+echo SCROLL 1
 sleep 120
-echo BLUE_ON_BLACK
+echo SCROLL 2
 sleep 120
-* Fill to scroll
+* Test 2: Cursor Positioning & Erasing
+* Position at Row 2, Col 10. (01 02 0a)
+display 01 02 0a
+display /<-- ERASE FROM HERE/
+sleep 120
+display 01 02 0a 1b 03
+sleep 120
+* Test 3: Multi-Mode (40x30)
+* Split 40x30 at Row 10.
+display 1b 20 01 00 0a 28 14 07 00 00
+sleep 120
+display 1b 21 00
+echo W0 40x30 MODE
+echo FILLING TO SCROLL...
 echo L1
-sleep 120
 echo L2
-sleep 120
 echo L3
-sleep 120
 echo L4
+echo L5
+echo L6
+echo L7
+echo L8
+echo L9
+echo L10 SCROLL
 sleep 120
-echo L5_SCROLL
-sleep 120
-* Test wrapping at boundary
-display 01 04 4e
-sleep 120
-echo WRAP_TEST_0123456789
-sleep 120
-* Switch to W1 and check if W0 state is preserved
+* Test 4: State Preservation
 display 1b 21 01
-sleep 120
-echo IN_W1
+display /W1 ACTIVE/
 sleep 120
 display 1b 21 00
-sleep 120
-echo BACK_IN_W0_CHECK_COLOR
+echo BACK IN W0
 sleep 120
 * End Split
 display 1b 24
-sleep 120
-echo W0_ENHANCED_DONE
+echo UPPER PANE TEST COMPLETE
