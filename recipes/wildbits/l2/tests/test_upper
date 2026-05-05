@@ -11,11 +11,17 @@ sleep 120
 * Test 1: Color and Scrolling
 * Set colors: Yellow on Blue ($41)
 display 1b 32 0e 1b 33 01
+sleep 120
 echo W0 YELLOW ON BLUE
+sleep 120
 echo LINE 1
+sleep 120
 echo LINE 2
+sleep 120
 echo LINE 3
+sleep 120
 echo LINE 4
+sleep 120
 echo SCROLL 1
 sleep 120
 echo SCROLL 2
@@ -23,7 +29,8 @@ sleep 120
 * Test 2: Cursor Positioning & Erasing
 * Position at Row 2, Col 10. (01 02 0a)
 display 01 02 0a
-display /<-- ERASE FROM HERE/
+sleep 120
+display /--- ERASE FROM HERE/
 sleep 120
 display 01 02 0a 1b 03
 sleep 120
@@ -32,26 +39,41 @@ sleep 120
 display 1b 20 01 00 0a 28 14 07 00 00
 sleep 120
 display 1b 21 00
+sleep 120
 echo W0 40x30 MODE
+sleep 120
 echo FILLING TO SCROLL...
+sleep 120
 echo L1
+sleep 120
 echo L2
+sleep 120
 echo L3
+sleep 120
 echo L4
+sleep 120
 echo L5
+sleep 120
 echo L6
+sleep 120
 echo L7
+sleep 120
 echo L8
+sleep 120
 echo L9
+sleep 120
 echo L10 SCROLL
 sleep 120
 * Test 4: State Preservation
 display 1b 21 01
+sleep 120
 display /W1 ACTIVE/
 sleep 120
 display 1b 21 00
+sleep 120
 echo BACK IN W0
 sleep 120
 * End Split
 display 1b 24
+sleep 120
 echo UPPER PANE TEST COMPLETE
