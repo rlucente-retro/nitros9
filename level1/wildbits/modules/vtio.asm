@@ -864,17 +864,21 @@ CurXY               leax      CurXYChar1,pcr
 c@                  stx       V.EscVect,u
                     rts
 CurXYChar1          suba      #$20
-                    cmpa      V.WWidth,u
-                    blt       s1@
-                    lda       V.WWidth,u
+                    bhs       ok1@                if >= 32, ok
+                    clra                          else set to 0
+ok1@                cmpa      V.WWidth,u          check against window width
+                    blo       s1@                 if < Width, ok
+                    lda       V.WWidth,u          else clamp to last column
                     deca
 s1@                 sta       V.CurCol,u
                     leax      CurXYChar2,pcr
                     bra       c@
 CurXYChar2          suba      #$20
-                    cmpa      V.WHeight,u
-                    blt       s2@
-                    lda       V.WHeight,u
+                    bhs       ok2@                if >= 32, ok
+                    clra                          else set to 0
+ok2@                cmpa      V.WHeight,u         check against window height
+                    blo       s2@                 if < Height, ok
+                    lda       V.WHeight,u         else clamp to last row
                     deca
 s2@                 sta       V.CurRow,u
                     lbra      ResetHandler

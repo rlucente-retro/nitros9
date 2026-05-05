@@ -27,12 +27,13 @@ sleep 120
 echo SCROLL 2
 sleep 120
 * Test 2: Cursor Positioning & Erasing
-* Position at Row 2, Col 10. (01 02 0a)
-display 01 02 0a
+* In this driver, CurXY is 02 (Col+32) (Row+32).
+* For Row 2, Col 10: Col=10+32=42 ($2A), Row=2+32=34 ($22).
+display 02 2a 22
 sleep 120
 display /--- ERASE FROM HERE/
 sleep 120
-display 01 02 0a 1b 03
+display 02 2a 22 1b 03
 sleep 120
 * Test 3: Multi-Mode (40x30)
 * Split 40x30 at Row 10.
