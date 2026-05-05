@@ -84,6 +84,7 @@ SCRIPTS_DIR = $(LEVEL1)/wildbits/scripts
 TESTS_DIR = $(LEVEL1)/wildbits/tests
 SCRIPTS = $(notdir $(wildcard $(SCRIPTS_DIR)/*))
 TESTS = $(notdir $(wildcard $(TESTS_DIR)/*))
+TESTS_EXTRA = $(notdir $(wildcard tests/*))
 FONT_DIR = $(LEVEL1)/wildbits/sys/fonts
 BACKGROUND_DIR = $(LEVEL1)/wildbits/sys/backgrounds
 FONTS = 800yfont applefont bigbluefont boxedfont bannerfont.sb \
@@ -172,6 +173,9 @@ endif
 	$(foreach file,$(SCRIPTS),$(CPL) $(SCRIPTS_DIR)/$(file) $@,SCRIPTS;)
 	$(MAKDIR) $@,TESTS
 	$(foreach file,$(TESTS),$(CPL) $(TESTS_DIR)/$(file) $@,TESTS;)
+ifneq ($(strip $(TESTS_EXTRA)),)
+	$(foreach file,$(TESTS_EXTRA),$(CPL) tests/$(file) $@,TESTS;)
+endif
 	$(MAKDIR) $@,FEU
 	$(CPL) $(FEU_STARTUP) $@,FEU/startup
 
