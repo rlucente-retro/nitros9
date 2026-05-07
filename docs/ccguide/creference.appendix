@@ -414,8 +414,7 @@ type.
 Alternative categories are listed on separate lines.
 An optional terminal or nonterminal symbol is
 indicated by the subscript <quote>opt,</quote> so that
-<literallayout>
-{ <emphasis>expression<subscript>opt</subscript></emphasis> }
+<literallayout>{ <emphasis>expression<subscript>opt</subscript></emphasis> }
 </literallayout>
 
 indicates an optional expression enclosed in braces.
@@ -801,8 +800,7 @@ involving <literal>.</literal>,
 <literal>-></literal>,
 subscripting, and function calls
 group left to right.
-<literallayout> 
-<emphasis>primary-expression:
+<literallayout><emphasis>primary-expression:
         identifier
         constant
         string
@@ -812,8 +810,7 @@ group left to right.
         primary-expression . identifier
         primary-expression -> identifier</emphasis>
 </literallayout>
-<literallayout> 
-<emphasis>expression-list:
+<literallayout><emphasis>expression-list:
         expression
         expression-list , expression</emphasis>
 </literallayout>
@@ -974,8 +971,7 @@ Structures and unions are discussed in
 <para>
 Expressions with unary operators
 group right to left.
-<literallayout> 
-<emphasis>unary-expression:
+<literallayout><emphasis>unary-expression:
         * expression
         &amp; lvalue
         - expression
@@ -1138,8 +1134,7 @@ and
 <literal>%</literal>
 group left to right.
 The usual arithmetic conversions are performed.
-<literallayout> 
-<emphasis>multiplicative expression:
+<literallayout><emphasis>multiplicative expression:
         expression * expression
         expression / expression
         expression % expression</emphasis>
@@ -1185,8 +1180,7 @@ and
 group left to right.
 The usual arithmetic conversions are performed.
 There are some additional type possibilities for each operator.
-<literallayout> 
-<emphasis>additive-expression:
+<literallayout><emphasis>additive-expression:
         expression + expression
         expression - expression</emphasis>
 </literallayout>
@@ -1260,8 +1254,7 @@ The result is undefined if the right operand is negative
 or greater than or equal to the length of the object in bits.
 On the VAX a negative right operand is interpreted as reversing
 the direction of the shift.
-<literallayout> 
-<emphasis>shift-expression:
+<literallayout><emphasis>shift-expression:
         expression &lt;&lt; expression
         expression >> expression</emphasis>
 </literallayout>
@@ -1294,8 +1287,7 @@ arithmetic.
 <sect2 id="cref7.6"><title>Relational Operators</title>
 <para>
 The relational operators group left to right. 
-<literallayout> 
-<emphasis>relational-expression:
+<literallayout><emphasis>relational-expression:
         expression &lt; expression
         expression > expression
         expression &lt;= expression
@@ -1323,8 +1315,7 @@ in the same array.
 </para></sect2>
 <sect2 id="cref7.7"><title>Equality Operators</title>
 <para>
-<literallayout> 
-<emphasis>equality-expression:
+<literallayout><emphasis>equality-expression:
         expression == expression
         expression != expression</emphasis>
 </literallayout>
@@ -1355,8 +1346,7 @@ In conventional usage, such a pointer is considered to be null.
 </para></sect2>
 <sect2 id="cref7.8"><title>Bitwise AND Operator</title>
 <para>
-<literallayout> 
-<emphasis>and-expression:
+<literallayout><emphasis>and-expression:
         expression &amp; expression</emphasis>
 </literallayout>
 </para><para>
@@ -1374,8 +1364,7 @@ The operator applies only to integral
 operands.
 </para></sect2>
 <sect2 id="cref7.9"><title>Bitwise Exclusive OR Operator</title>
-<literallayout> 
-<emphasis>exclusive-or-expression:
+<literallayout><emphasis>exclusive-or-expression:
         expression ^ expression</emphasis>
 </literallayout>
 <para>
@@ -1395,8 +1384,7 @@ The operator applies only to integral
 operands.
 </para></sect2>
 <sect2 id="cref7.10"><title>Bitwise Inclusive OR Operator</title>
-<literallayout> 
-<emphasis>inclusive-or-expression:
+<literallayout><emphasis>inclusive-or-expression:
         expression | expression</emphasis>
 </literallayout>
 <para>
@@ -1414,8 +1402,7 @@ The operator applies only to integral
 operands.
 </para></sect2>
 <sect2 id="cref7.11"><title>Logical AND Operator</title>
-<literallayout> 
-<emphasis>logical-and-expression:
+<literallayout><emphasis>logical-and-expression:
         expression &amp;&amp; expression</emphasis>
 </literallayout>
 <para>
@@ -1438,8 +1425,7 @@ The result is always
 <literal>int</literal>.
 </para></sect2>
 <sect2 id="cref7.12"><title>Logical OR Operator</title>
-<literallayout> 
-<emphasis>logical-or-expression:
+<literallayout><emphasis>logical-or-expression:
         expression || expression</emphasis>
 </literallayout>
 <para>
@@ -1463,8 +1449,7 @@ The result is always
 <literal>int</literal>.
 </para></sect2>
 <sect2 id="cref7.13"><title>Conditional Operator</title>
-<literallayout> 
-<emphasis>conditional-expression:
+<literallayout><emphasis>conditional-expression:
         expression ? expression : expression</emphasis>
 </literallayout>
 <para>
@@ -1494,8 +1479,7 @@ The value is the value stored in the
 left operand after the assignment has taken place.
 The two parts of a compound assignment operator are separate
 tokens.
-<literallayout> 
-<emphasis>assignment-expression:
+<literallayout><emphasis>assignment-expression:
         lvalue = expression
         lvalue += expression
         lvalue -= expression
@@ -1544,8 +1528,7 @@ All right operands and all nonpointer left operands must
 have arithmetic type.
 </para></sect2>
 <sect2 id="cref7.15"><title>Comma Operator</title>
-<literallayout> 
-<emphasis>comma-expression:
+<literallayout><emphasis>comma-expression:
         expression , expression</emphasis>
 </literallayout>
 <para>
@@ -1561,8 +1544,7 @@ to functions (see <xref linkend="cref7.1"/>) and lists
 of initializers (see <xref linkend="cref8.6"/>),
 the comma operator as described in this subpart
 can only appear in parentheses. For example,
-<literallayout> 
-<literal>f(a, (t=3, t+2), c)</literal>
+<literallayout><literal>f(a, (t=3, t+2), c)</literal>
 </literallayout>
 has three arguments, the second of which has the value 5.
 </para></sect2></sect1>
@@ -1572,8 +1554,7 @@ Declarations are used to specify the interpretation
 which C gives to each identifier; they do not necessarily
 reserve storage associated with the identifier.
 Declarations have the form
-<literallayout> 
-<emphasis>declaration:
+<literallayout><emphasis>declaration:
         decl-specifiers declarator-list<subscript>opt</subscript> ;</emphasis>
 </literallayout>
 </para><para> 
@@ -1581,8 +1562,7 @@ The declarators in the declarator-list
 contain the identifiers being declared.
 The decl-specifiers
 consist of a sequence of type and storage class specifiers.
-<literallayout> 
-<emphasis>decl-specifiers:
+<literallayout><emphasis>decl-specifiers:
         type-specifier decl-specifiers<subscript>opt</subscript>
         sc-specifier decl-specifiers<subscript>opt</subscript></emphasis>
 </literallayout>
@@ -1592,8 +1572,7 @@ The list must be self-consistent in a way described below.
 <sect2 id="cref8.1"><title>Storage Class Specifiers</title>
 <para>
 The sc-specifiers are:
-<literallayout> 
-<emphasis>sc-specifier:</emphasis><literal>
+<literallayout><emphasis>sc-specifier:</emphasis><literal>
         auto
         static
         extern
@@ -1656,8 +1635,7 @@ functions are never automatic.
 <sect2 id="cref8.2"><title>Type Specifiers</title>
 <para>
 The type-specifiers are
-<literallayout> 
-<emphasis>type-specifier:</emphasis>
+<literallayout><emphasis>type-specifier:</emphasis>
 <literal>char
         short
         int
@@ -1698,13 +1676,11 @@ names are discussed in <xref linkend="cref8.8"/>.
 The declarator-list appearing in a declaration
 is a comma-separated sequence of declarators,
 each of which may have an initializer.
-<literallayout> 
-<emphasis>declarator-list:
+<literallayout><emphasis>declarator-list:
         init-declarator
         init-declarator , declarator-list</emphasis>
 </literallayout>
-<literallayout> 
-<emphasis>init-declarator:
+<literallayout><emphasis>init-declarator:
         declarator initializer<subscript>opt</subscript></emphasis>
 </literallayout>
 </para><para> 
@@ -1713,8 +1689,7 @@ The specifiers in the declaration
 indicate the type and storage class of the objects to which the
 declarators refer.
 Declarators have the syntax:
-<literallayout> 
-<emphasis>declarator:
+<literallayout><emphasis>declarator:
         identifier
         ( declarator )
         * declarator
@@ -1744,8 +1719,7 @@ but the binding of complex declarators may be altered by parentheses.
 See the examples below.
 </para><para>
 Now imagine a declaration
-<literallayout> 
-<literal>T D1</literal>
+<literallayout><literal>T D1</literal>
 </literallayout>
 where
 <literal>T</literal>
@@ -1771,8 +1745,7 @@ is just
 Then if
 <literal>D1</literal>
 has the form
-<literallayout> 
-<literal>*D</literal>
+<literallayout><literal>*D</literal>
 </literallayout>
 the type of the contained identifier is
 <quote>... pointer to
@@ -1782,8 +1755,7 @@ the type of the contained identifier is
 If
 <literal>D1</literal>
 has the form
-<literallayout> 
-<literal>D()</literal>
+<literallayout><literal>D()</literal>
 </literallayout>
 then the contained identifier has the type
 <quote>... function returning
@@ -1791,12 +1763,10 @@ then the contained identifier has the type
 If
 <literal>D1</literal>
 has the form
-<literallayout> 
-<literal>D[</literal><emphasis>constant-expression</emphasis><literal>]</literal>
+<literallayout><literal>D[</literal><emphasis>constant-expression</emphasis><literal>]</literal>
 </literallayout>
 or
-<literallayout> 
-<literal>D[]</literal>
+<literallayout><literal>D[]</literal>
 </literallayout>
 then the contained identifier has type
 <quote>... array of
@@ -1838,8 +1808,7 @@ Likewise, a structure or union may not contain a function;
 but it may contain a pointer to a function.
 </para><para>
 As an example, the declaration
-<literallayout> 
-<literal>int i, *ip, f(), *fip(), (*pfi)();</literal>
+<literallayout><literal>int i, *ip, f(), *fip(), (*pfi)();</literal>
 </literallayout>
 declares an integer
 <literal>i</literal>,
@@ -1875,8 +1844,7 @@ a pointer to a function yields a function, which is then called;
 it returns an integer.
 </para><para>
 As another example,
-<literallayout> 
-<literal>float fa[17], *afp[17];</literal>
+<literallayout><literal>float fa[17], *afp[17];</literal>
 </literallayout>
 declares an array of
 <literal>float</literal>
@@ -1885,8 +1853,7 @@ pointers to
 <literal>float</literal>
 numbers.
 Finally,
-<literallayout> 
-<literal>static int x3d[3][5][7];</literal>
+<literallayout><literal>static int x3d[3][5][7];</literal>
 </literallayout>
 declares a static 3-dimensional array of integers,
 with rank 3&times;5&times;7.
@@ -1914,14 +1881,12 @@ Each member may have any type.
 A union is an object which may, at a given time, contain any one
 of several members.
 Structure and union specifiers have the same form.
-<literallayout> 
-<emphasis>struct-or-union-specifier:
+<literallayout><emphasis>struct-or-union-specifier:
         struct-or-union { struct-decl-list }
         struct-or-union identifier { struct-decl-list }
         struct-or-union identifier</emphasis>
 </literallayout>
-<literallayout> 
-<emphasis>struct-or-union:</emphasis><literal>
+<literallayout><emphasis>struct-or-union:</emphasis><literal>
         struct
         union</literal>
 </literallayout>
@@ -1930,17 +1895,14 @@ The
 struct-decl-list
 
 is a sequence of declarations for the members of the structure or union:
-<literallayout> 
-<emphasis>struct-decl-list:
+<literallayout><emphasis>struct-decl-list:
         struct-declaration
         struct-declaration struct-decl-list</emphasis>
 </literallayout>
-<literallayout> 
-<emphasis>struct-declaration:
+<literallayout><emphasis>struct-declaration:
         type-specifier struct-declarator-list ;</emphasis>
 </literallayout>
-<literallayout> 
-<emphasis>struct-declarator-list:
+<literallayout><emphasis>struct-declarator-list:
         struct-declarator
         struct-declarator , struct-declarator-list</emphasis>
 </literallayout>
@@ -1955,8 +1917,7 @@ field ;
 its length,
 a non-negative constant expression,
 is set off from the field name by a colon.
-<literallayout> 
-<emphasis>struct-declarator:
+<literallayout><emphasis>struct-declarator:
         declarator
         declarator : constant-expression
         : constant-expression</emphasis>
@@ -2022,8 +1983,7 @@ At most, one of the members can be stored in a union
 at any time.
 </para><para>
 A structure or union specifier of the second form, that is, one of
-<literallayout> 
-        <literal>struct</literal> <emphasis>identifier { struct-decl-list </emphasis>}
+<literallayout>        <literal>struct</literal> <emphasis>identifier { struct-decl-list </emphasis>}
         <literal>union</literal> <emphasis>identifier { struct-decl-list </emphasis>}
 </literallayout>
 declares the identifier to be the
@@ -2034,8 +1994,7 @@ structure tag
 of the structure specified by the list.
 A subsequent declaration may then use
 the third form of specifier, one of
-<literallayout> 
-        <literal>struct</literal> <emphasis>identifier</emphasis>
+<literallayout>        <literal>struct</literal> <emphasis>identifier</emphasis>
         <literal>union</literal> <emphasis>identifier</emphasis>
 </literallayout>
 </para><para> 
@@ -2066,8 +2025,7 @@ but the same name may be used in several different structures in the same scope.
 </para><para>
 A simple but important example of a structure declaration is
 the following binary tree structure:
-<literallayout> 
-<literal>struct tnode 
+<literallayout><literal>struct tnode 
 {
         char tword[20];
         int count;
@@ -2079,8 +2037,7 @@ which contains an array of 20 characters, an integer, and two pointers
 to similar structures.
 Once this declaration has been given, the
 declaration
-<literallayout> 
-<literal>struct tnode s, *sp;</literal>
+<literallayout><literal>struct tnode s, *sp;</literal>
 </literallayout>
 declares
 <literal>s</literal>
@@ -2090,23 +2047,20 @@ and
 to be a pointer to a structure
 of the given sort.
 With these declarations, the expression
-<literallayout> 
-<literal>sp->count</literal>
+<literallayout><literal>sp->count</literal>
 </literallayout>
 refers to the
 <literal>count</literal>
 field of the structure to which
 <literal>sp</literal>
 points;
-<literallayout> 
-<literal>s.left</literal>
+<literallayout><literal>s.left</literal>
 </literallayout>
 refers to the left subtree pointer
 of the structure
 <literal>s</literal>;
 and
-<literallayout> 
-<literal>s.right->tword[0]</literal>
+<literallayout><literal>s.right->tword[0]</literal>
 </literallayout>
 refers to the first character of the
 <literal>tword</literal>
@@ -2120,14 +2074,12 @@ identifier being declared.
 The initializer is preceded by
 <literal>=</literal>
 and consists of an expression or a list of values nested in braces.
-<literallayout> 
-<emphasis>initializer:
+<literallayout><emphasis>initializer:
         = expression
         = { initializer-list }
         = { initializer-list , }</emphasis>
 </literallayout>
-<literallayout> 
-<emphasis>initializer-list:
+<literallayout><emphasis>initializer-list:
         expression
         initializer-list , initializer-list</emphasis>
         { <emphasis>initializer-list </emphasis>}
@@ -2188,8 +2140,7 @@ In this case successive characters of the string
 initialize the members of the array.
 </para><para>
 For example,
-<literallayout> 
-<literal>int x[] = { 1, 3, 5 };</literal>
+<literallayout><literal>int x[] = { 1, 3, 5 };</literal>
 </literallayout>
 declares and initializes
 <literal>x</literal>
@@ -2220,8 +2171,7 @@ The initializer ends early and therefore
 <literal>y[3]</literal>
 is initialized with 0.
 Precisely, the same effect could have been achieved by
-<literallayout> 
-<literal>float y[4][3] = 
+<literallayout><literal>float y[4][3] = 
 {
         1, 3, 5, 2, 4, 6, 3, 5, 7
 };</literal>
@@ -2238,8 +2188,7 @@ Likewise, the next three are taken successively for
 and
 <literal>y[2]</literal>.
 Also,
-<literallayout> 
-<literal>float y[4][3] = 
+<literallayout><literal>float y[4][3] = 
 {
         { 1 }, { 2 }, { 3 }, { 4 }
 };</literal>
@@ -2250,8 +2199,7 @@ initializes the first column of
 and leaves the rest 0.
 </para><para>
 Finally,
-<literallayout> 
-<literal>char msg[] = "Syntax error on line %s\n";</literal>
+<literallayout><literal>char msg[] = "Syntax error on line %s\n";</literal>
 </literallayout>
 shows a character array whose members are initialized
 with a string.
@@ -2266,12 +2214,10 @@ it is desired to supply the name of a data type.
 This is accomplished using a <quote>type name</quote>, which in essence
 is a declaration for an object of that type which omits the name of
 the object.
-<literallayout> 
-<emphasis>type-name:
+<literallayout><emphasis>type-name:
         type-specifier abstract-declarator</emphasis>
 </literallayout>
-<literallayout> 
-<emphasis>abstract-declarator:
+<literallayout><emphasis>abstract-declarator:
         empty
         ( abstract-declarator )
         * abstract-declarator
@@ -2281,8 +2227,7 @@ the object.
 </para><para> 
 To avoid ambiguity,
 in the construction
-<literallayout> 
-        <emphasis>( abstract-declarator </emphasis>)
+<literallayout>        <emphasis>( abstract-declarator </emphasis>)
 </literallayout>
 the
 abstract-declarator
@@ -2318,8 +2263,7 @@ do not define storage but instead
 define identifiers which can be used later
 as if they were type keywords naming fundamental
 or derived types.
-<literallayout> 
-<emphasis>typedef-name:</emphasis>
+<literallayout><emphasis>typedef-name:</emphasis>
         <emphasis>identifier</emphasis>
 </literallayout>
 </para><para> 
@@ -2338,8 +2282,7 @@ typedef int MILES, *KLICKSP;
 typedef struct { double re, im; } complex;
 </programlisting>
 the constructions
-<literallayout> 
-<literal>MILES distance;
+<literallayout><literal>MILES distance;
 extern KLICKSP metricp;
 complex z, *zp;</literal>
 </literallayout>
@@ -2377,8 +2320,7 @@ Except as indicated, statements are executed in sequence.
 <para>
 Most statements are expression statements, which have
 the form
-<literallayout> 
-<emphasis>expression </emphasis>;
+<literallayout><emphasis>expression </emphasis>;
 </literallayout>
 </para><para> 
 Usually expression statements are assignments or function
@@ -2388,17 +2330,14 @@ calls.
 <para>
 So that several statements can be used where one is expected,
 the compound statement (also, and equivalently, called <quote>block</quote>) is provided:
-<literallayout> 
-<emphasis>compound-statement:
+<literallayout><emphasis>compound-statement:
         { declaration-list<subscript>opt</subscript> statement-list<subscript>opt</subscript> }</emphasis>
 </literallayout>
-<literallayout> 
-<emphasis>declaration-list:
+<literallayout><emphasis>declaration-list:
         declaration
         declaration declaration-list</emphasis>
 </literallayout>
-<literallayout> 
-<emphasis>statement-list:
+<literallayout><emphasis>statement-list:
         statement
         statement statement-list</emphasis>
 </literallayout>
@@ -2429,8 +2368,7 @@ so initialization is not permitted.
 <sect2 id="cref9.3"><title>Conditional Statement</title>
 <para>
 The two forms of the conditional statement are
-<literallayout> 
-<literal>if</literal> ( <emphasis>expression</emphasis> ) <emphasis>statement</emphasis>
+<literallayout><literal>if</literal> ( <emphasis>expression</emphasis> ) <emphasis>statement</emphasis>
 <literal>if</literal> ( <emphasis>expression</emphasis> ) <emphasis>statement</emphasis> <literal>else</literal> <emphasis>statement</emphasis>
 </literallayout>
 </para><para> 
@@ -2451,8 +2389,7 @@ with the last encountered
 The
 <literal>while</literal>
 statement has the form
-<literallayout> 
-<literal>while</literal> ( <emphasis>expression</emphasis> ) <emphasis>statement</emphasis>
+<literallayout><literal>while</literal> ( <emphasis>expression</emphasis> ) <emphasis>statement</emphasis>
 </literallayout>
 </para><para>
 The substatement is executed repeatedly
@@ -2466,8 +2403,7 @@ statement.
 The
 <literal>do</literal>
 statement has the form
-<literallayout> 
-<literal>do</literal> <emphasis>statement</emphasis>  <literal>while</literal> ( <emphasis>expression </emphasis>) ;
+<literallayout><literal>do</literal> <emphasis>statement</emphasis>  <literal>while</literal> ( <emphasis>expression </emphasis>) ;
 </literallayout>
 </para><para>
 The substatement is executed repeatedly until
@@ -2480,14 +2416,12 @@ statement.
 The
 <literal>for</literal>
 statement has the form:
-<literallayout>  
-<literal>for</literal><emphasis> ( exp-1<subscript>opt</subscript> ; exp-2<subscript>opt</subscript> ; exp-3<subscript>opt</subscript> ) statement</emphasis>
+<literallayout><literal>for</literal><emphasis> ( exp-1<subscript>opt</subscript> ; exp-2<subscript>opt</subscript> ; exp-3<subscript>opt</subscript> ) statement</emphasis>
 </literallayout>
 </para><para>
 Except for the behavior of <literal>continue</literal>,
 this statement is equivalent to
-<literallayout> 
-<emphasis>exp-1 </emphasis>;
+<literallayout><emphasis>exp-1 </emphasis>;
 <literal>while</literal> ( <emphasis>exp-2 ) </emphasis>
 {
         <emphasis>statement
@@ -2524,8 +2458,7 @@ statement causes control to be transferred
 to one of several statements depending on
 the value of an expression.
 It has the form
-<literallayout> 
-<literal>switch</literal> ( <emphasis>expression</emphasis> ) <emphasis>statement</emphasis>
+<literallayout><literal>switch</literal> ( <emphasis>expression</emphasis> ) <emphasis>statement</emphasis>
 </literallayout>
 </para><para>
 The usual arithmetic conversion is performed on the
@@ -2535,8 +2468,7 @@ The statement is typically compound.
 Any statement within the statement
 may be labeled with one or more case prefixes
 as follows:
-<literallayout> 
-<literal>case</literal> <emphasis>constant-expression </emphasis>:
+<literallayout><literal>case</literal> <emphasis>constant-expression </emphasis>:
 </literallayout>
 where the constant
 expression
@@ -2548,8 +2480,7 @@ Constant expressions are precisely defined in <xref linkend="cref15"/>.
 </para><para>
 There may also be at most one statement prefix of the
 form
-<literallayout> 
-<literal>default :</literal>
+<literallayout><literal>default :</literal>
 </literallayout>
 </para><para>
 When the
@@ -2591,8 +2522,7 @@ are ineffective.
 <sect2 id="cref9.8"><title>Break Statement</title>
 <para>
 The statement
-<literallayout> 
-<literal>break ;</literal>
+<literallayout><literal>break ;</literal>
 </literallayout>
 causes termination of the smallest enclosing
 <literal>while</literal>,
@@ -2607,8 +2537,7 @@ statement following the terminated statement.
 <sect2 id="cref9.9"><title>Continue Statement</title>
 <para>
 The statement
-<literallayout> 
-<literal>continue ;</literal>
+<literallayout><literal>continue ;</literal>
 </literallayout>
 causes control to pass to the loop-continuation portion of the
 smallest enclosing
@@ -2662,8 +2591,7 @@ the
 <literal>return</literal>
 statement which has one of the
 forms
-<literallayout> 
-<literal>return ;
+<literallayout><literal>return ;
 return </literal><emphasis>expression </emphasis>;
 </literallayout>
 </para><para>
@@ -2682,8 +2610,7 @@ The expression may be parenthesized.
 <para>
 Control may be transferred unconditionally by means of
 the statement
-<literallayout> 
-<literal>goto</literal> <emphasis>identifier </emphasis>;
+<literallayout><literal>goto</literal> <emphasis>identifier </emphasis>;
 </literallayout>
 </para><para>
 The identifier must be a label
@@ -2694,8 +2621,7 @@ located in the current function.
 <para>
 Any statement may be preceded by
 label prefixes of the form
-<literallayout> 
-<emphasis>identifier </emphasis>:
+<literallayout><emphasis>identifier </emphasis>:
 </literallayout>
 which serve to declare the identifier
 as a label.
@@ -2708,8 +2634,7 @@ See <xref linkend="cref11"/>
 <sect2 id="cref9.13"><title>Null Statement</title>
 <para>
 The null statement has the form
-<literallayout>
-      <literal>;</literal>
+<literallayout>      <literal>;</literal>
 </literallayout>
 </para><para>
 A null statement is useful to carry a label just before the
@@ -2744,8 +2669,7 @@ only at this level may the code for functions be given.
 <title>External Function Definitions</title>
 <para>
 Function definitions have the form
-<literallayout>
-<emphasis>function-definition:
+<literallayout><emphasis>function-definition:
         decl-specifiers<subscript>opt</subscript> function-declarator function-body</emphasis>
 </literallayout>
 </para><para>
@@ -2761,20 +2685,17 @@ A function declarator is similar to a declarator
 for a <quote>function returning ...</quote> except that
 it lists the formal parameters of
 the function being defined.
-<literallayout> 
-<emphasis>function-declarator:
+<literallayout><emphasis>function-declarator:
         declarator ( parameter-list<subscript>opt</subscript> )</emphasis>
 </literallayout>
-<literallayout> 
-<emphasis>parameter-list:
+<literallayout><emphasis>parameter-list:
         identifier
         identifier , parameter-list</emphasis>
 </literallayout>
 </para><para>
 The function-body
 has the form
-<literallayout> 
-<emphasis>function-body:
+<literallayout><emphasis>function-body:
         declaration-list<subscript>opt</subscript> compound-statement</emphasis>
 </literallayout>
 </para><para>
@@ -2789,8 +2710,7 @@ will be copied, if possible, into a register
 at the outset of the function.
 </para><para>
 A simple example of a complete function definition is
-<literallayout> 
-<literal>int max(a, b, c)
+<literallayout><literal>int max(a, b, c)
         int a, b, c;
 {
         int m;
@@ -2836,8 +2756,7 @@ are adjusted to read <quote>pointer to ....</quote>
 <title>External Data Definitions</title>
 <para>
 An external data definition has the form
-<literallayout> 
-<emphasis>data-definition:
+<literallayout><emphasis>data-definition:
         declaration</emphasis>
 </literallayout>
 </para><para>
@@ -2984,15 +2903,13 @@ scope) until the end of the source program file.
 <sect2><title>Token Replacement</title>
 <para>
 A compiler-control line of the form
-<literallayout> 
-<literal>#define</literal> <emphasis>identifier token-string<subscript>opt</subscript></emphasis>
+<literallayout><literal>#define</literal> <emphasis>identifier token-string<subscript>opt</subscript></emphasis>
 </literallayout>
 causes the preprocessor to replace subsequent instances
 of the identifier with the given string of tokens.
 Semicolons in or at the end of the token-string are part of that string.
 A line of the form
-<literallayout>
-<literal>#define</literal> <emphasis>identifier(identifier, ... )token-string<subscript>opt</subscript></emphasis>
+<literallayout><literal>#define</literal> <emphasis>identifier(identifier, ... )token-string<subscript>opt</subscript></emphasis>
 </literallayout>
 where there is no space between the first identifier
 and the
@@ -3035,8 +2952,7 @@ int table[TABSIZE];
 </screen>
 </para><para>
 A control line of the form
-<literallayout> 
-<literal>#undef</literal> <emphasis>identifier</emphasis>
+<literallayout><literal>#undef</literal> <emphasis>identifier</emphasis>
 </literallayout>
 causes the
 identifier's preprocessor definition (if any) to be forgotten.
@@ -3052,8 +2968,7 @@ the identifier is considered to be redefined.
 <para>
 A compiler control line of
 the form
-<literallayout> 
-<literal>#include</literal><emphasis> &quot;filename</emphasis>&quot;
+<literallayout><literal>#include</literal><emphasis> &quot;filename</emphasis>&quot;
 </literallayout>
 causes the replacement of that
 line by the entire contents of the file
@@ -3063,8 +2978,7 @@ The named file is searched for first in the directory
 of the file containing the <literal>#include</literal>,
 and then in a sequence of specified or standard places.
 Alternatively, a control line of the form
-<literallayout> 
-<literal>#include</literal><emphasis> &lt;filename</emphasis>>
+<literallayout><literal>#include</literal><emphasis> &lt;filename</emphasis>>
 </literallayout>
 searches only the specified or standard places
 and not the directory of the <literal>#include</literal>.
@@ -3076,14 +2990,12 @@ may be nested.
 <sect2><title>Conditional Compilation</title>
 <para>
 A compiler control line of the form
-<literallayout> 
-<literal>#if</literal> <emphasis>constant-expression</emphasis>
+<literallayout><literal>#if</literal> <emphasis>constant-expression</emphasis>
 </literallayout>
 checks whether the constant expression evaluates to nonzero.
 (Constant expressions are discussed in <xref linkend="cref15"/>.
 A control line of the form
-<literallayout> 
-<literal>#ifdef </literal><emphasis>identifier</emphasis>
+<literallayout><literal>#ifdef </literal><emphasis>identifier</emphasis>
 </literallayout>
 checks whether the identifier is currently defined
 in the preprocessor; i.e., whether it has been the
@@ -3092,24 +3004,20 @@ subject of a
 control line.
 It is equivalent to <literal>#ifdef(</literal><emphasis>identifier</emphasis><literal>)</literal>.
 A control line of the form
-<literallayout> 
-<literal>#ifndef </literal><emphasis>identifier</emphasis>
+<literallayout><literal>#ifndef </literal><emphasis>identifier</emphasis>
 </literallayout>
 checks whether the identifier is currently undefined
 in the preprocessor.
 It is equivalent to
-<literallayout>
-<literal>#if !defined(</literal><emphasis>identifier</emphasis><literal>)</literal>.
+<literallayout><literal>#if !defined(</literal><emphasis>identifier</emphasis><literal>)</literal>.
 </literallayout>
 </para><para>
 All three forms are followed by an arbitrary number of lines,
 possibly containing a control line
-<literallayout> 
-<literal>#else</literal>
+<literallayout><literal>#else</literal>
 </literallayout>
 and then by a control line
-<literallayout> 
-<literal>#endif</literal>
+<literallayout><literal>#endif</literal>
 </literallayout>
 </para><para>
 If the checked condition is true,
@@ -3134,8 +3042,7 @@ These constructions may be nested.
 <para>
 For the benefit of other preprocessors which generate C programs,
 a line of the form
-<literallayout> 
-<literal>#line </literal><emphasis>constant identifier</emphasis>
+<literallayout><literal>#line </literal><emphasis>constant identifier</emphasis>
 </literallayout>
 causes the compiler to believe, for purposes of error
 diagnostics,
@@ -3300,8 +3207,7 @@ the result is the pointed-to (n-1)-dimensional array,
 which itself is immediately converted into a pointer.
 </para><para>
 For example, consider
-<literallayout> 
-<literal>int x[3][5];</literal>
+<literallayout><literal>int x[3][5];</literal>
 </literallayout>
 </para><para>
 Here
@@ -3577,8 +3483,7 @@ than as an exact statement of the language.
 <sect2><title>Expressions</title>
 <para>
 The basic expressions are:
-<literallayout> 
-     <emphasis>expression:
+<literallayout>     <emphasis>expression:
              primary
              * expression
              &amp;lvalue
@@ -3597,8 +3502,7 @@ The basic expressions are:
              lvalue asgnop expression
              expression , expression</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>primary:
+<literallayout>     <emphasis>primary:
              identifier
              constant
              string
@@ -3608,8 +3512,7 @@ The basic expressions are:
              primary . identifier
              primary - identifier</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>lvalue:
+<literallayout>     <emphasis>lvalue:
              identifier
              primary [ expression ]
              lvalue . identifier
@@ -3619,13 +3522,11 @@ The basic expressions are:
 </literallayout>
 </para><para>
 The primary-expression operators
-<literallayout> 
-     ()  []  .  -&lt;
+<literallayout>     ()  []  .  -&lt;
 </literallayout>
 have highest priority and group left to right.
 The unary operators
-<literallayout> 
-     *  &amp;  -  !  ~  ++ -- <literal>sizeof</literal><emphasis>   ( type-name </emphasis>)
+<literallayout>     *  &amp;  -  !  ~  ++ -- <literal>sizeof</literal><emphasis>   ( type-name </emphasis>)
 </literallayout>
 have priority below the primary operators
 but higher than any binary operator
@@ -3634,8 +3535,7 @@ Binary operators
 group left to right; they have priority
 decreasing
 as indicated below.
-<literallayout> 
-     <emphasis>binop:</emphasis>
+<literallayout>     <emphasis>binop:</emphasis>
              *    /    %
              +    -
              >>   &lt;&lt;
@@ -3651,8 +3551,7 @@ The conditional operator groups right to left.
 </para><para>
 Assignment operators all have the same
 priority and all group right to left.
-<literallayout> 
-     <emphasis>asgnop:</emphasis>
+<literallayout>     <emphasis>asgnop:</emphasis>
              =  +=  -=  *=  /=  %=  >>=  &lt;&lt;=  &amp;=  ^=  |=
 </literallayout>
 </para><para>
@@ -3660,25 +3559,21 @@ The comma operator has the lowest priority and groups left to right.
 </para></sect2>
 <sect2><title>Declarations</title>
 <para>
-<literallayout> 
-     <emphasis>declaration:
+<literallayout>     <emphasis>declaration:
              decl-specifiers init-declarator-list<subscript>opt</subscript> ;</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>decl-specifiers:
+<literallayout>     <emphasis>decl-specifiers:
              type-specifier decl-specifiers<subscript>opt</subscript>
              sc-specifier decl-specifiers<subscript>opt</subscript></emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>sc-specifier:</emphasis><literal>
+<literallayout>     <emphasis>sc-specifier:</emphasis><literal>
              auto
              static
              extern
              register
              typedef</literal>
 </literallayout>
-<literallayout> 
-     <emphasis>type-specifier:</emphasis>
+<literallayout>     <emphasis>type-specifier:</emphasis>
      <literal>char
              short
              int
@@ -3689,25 +3584,21 @@ The comma operator has the lowest priority and groups left to right.
              <emphasis>struct-or-union-specifier
              typedef-name</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>init-declarator-list:
+<literallayout>     <emphasis>init-declarator-list:
              init-declarator
              init-declarator , init-declarator-list</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>init-declarator:
+<literallayout>     <emphasis>init-declarator:
              declarator initializer<subscript>opt</subscript></emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>declarator:
+<literallayout>     <emphasis>declarator:
              identifier
              ( declarator )
              * declarator
              declarator ()
              declarator [ constant-expression<subscript>opt</subscript> ]</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>struct-or-union-specifier:</emphasis><literal>
+<literallayout>     <emphasis>struct-or-union-specifier:</emphasis><literal>
              struct</literal><emphasis> { struct-decl-list }</emphasis><literal>
              struct</literal> <emphasis>identifier { struct-decl-list }</emphasis><literal>
              struct</literal> <emphasis>identifier</emphasis><literal>
@@ -3715,74 +3606,61 @@ The comma operator has the lowest priority and groups left to right.
              union </literal><emphasis>identifier { struct-decl-list }</emphasis><literal>
              union </literal><emphasis>identifier</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>struct-decl-list:
+<literallayout>     <emphasis>struct-decl-list:
              struct-declaration
              struct-declaration struct-decl-list</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>struct-declaration:
+<literallayout>     <emphasis>struct-declaration:
              type-specifier struct-declarator-list ;</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>struct-declarator-list:
+<literallayout>     <emphasis>struct-declarator-list:
              struct-declarator
              struct-declarator , struct-declarator-list</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>struct-declarator:
+<literallayout>     <emphasis>struct-declarator:
              declarator
              declarator : constant-expression
              : constant-expression</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>initializer:
+<literallayout>     <emphasis>initializer:
              = expression
              = { initializer-list }
              = { initializer-list , }</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>initializer-list:
+<literallayout>     <emphasis>initializer-list:
              expression
              initializer-list , initializer-list
              { initializer-list }
              { initializer-list , }</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>type-name:
+<literallayout>     <emphasis>type-name:
              type-specifier abstract-declarator</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>abstract-declarator:
+<literallayout>     <emphasis>abstract-declarator:
              empty
              ( abstract-declarator )
              * abstract-declarator
              abstract-declarator ()
              abstract-declarator [ constant-expression<subscript>opt</subscript> ]</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>typedef-name:
+<literallayout>     <emphasis>typedef-name:
              identifier</emphasis>
 </literallayout>
 </para></sect2>
 <sect2><title>Statements</title>
 <para>
-<literallayout> 
-     <emphasis>compound-statement:
+<literallayout>     <emphasis>compound-statement:
              { declaration-list<subscript>opt</subscript> statement-list<subscript>opt</subscript> }</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>declaration-list:
+<literallayout>     <emphasis>declaration-list:
              declaration
              declaration declaration-list</emphasis>
 </literallayout>
-<literallayout> 
-     <emphasis>statement-list:
+<literallayout>     <emphasis>statement-list:
              statement
              statement statement-list</emphasis>
 </literallayout>
-<literallayout>  
-     <emphasis>statement:
+<literallayout>     <emphasis>statement:
              compound-statement
              expression ;</emphasis>
              <literal>if</literal><emphasis> ( expression ) statement</emphasis>
@@ -3805,42 +3683,34 @@ The comma operator has the lowest priority and groups left to right.
 <sect2>
 <title>External definitions</title>
 <para>
-<literallayout>
-     <emphasis>program:
+<literallayout>     <emphasis>program:
              external-definition
              external-definition program</emphasis>
 </literallayout>
-<literallayout>
-     <emphasis>external-definition:
+<literallayout>     <emphasis>external-definition:
              function-definition
              data-definition</emphasis>
 </literallayout>
-<literallayout>
-     <emphasis>function-definition:
+<literallayout>     <emphasis>function-definition:
              decl-specifier<subscript>opt</subscript> function-declarator function-body</emphasis>
 </literallayout>
-<literallayout>
-     <emphasis>function-declarator:
+<literallayout>     <emphasis>function-declarator:
              declarator ( parameter-list<subscript>opt</subscript> )</emphasis>
 </literallayout>
-<literallayout>
-     <emphasis>parameter-list:
+<literallayout>     <emphasis>parameter-list:
              identifier
              identifier , parameter-list</emphasis>
 </literallayout>
-<literallayout>
-     <emphasis>function-body:
+<literallayout>     <emphasis>function-body:
              declaration-list<subscript>opt</subscript> compound-statement</emphasis>
 </literallayout>
-<literallayout>
-     <emphasis>data-definition:</emphasis>
+<literallayout>     <emphasis>data-definition:</emphasis>
              <literal>extern</literal><emphasis> declaration</emphasis><literal> ;</literal>
              <literal>static</literal><emphasis> declaration</emphasis><literal> ;</literal>
 </literallayout>
 </para></sect2>
 <sect2><title>Preprocessor</title>
-<literallayout>
-             <literal>#define</literal><replaceable> identifier token-string<subscript>opt</subscript></replaceable>
+<literallayout>             <literal>#define</literal><replaceable> identifier token-string<subscript>opt</subscript></replaceable>
              <literal>#define</literal><replaceable> identifier</replaceable><literal>(</literal><replaceable>identifier</replaceable><literal>,...)</literal><replaceable>token-string<subscript>opt</subscript></replaceable>
              <literal>#undef</literal><replaceable> identifier</replaceable>
              <literal>#include &quot;</literal><replaceable>filename</replaceable><literal>&quot;</literal>

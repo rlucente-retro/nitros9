@@ -33,8 +33,7 @@ execution directory.
 </para>
 </refsect1>
 <refsect1><title>Examples</title>
-<literallayout>
-save wordcount wcount
+<literallayout>save wordcount wcount
 
 save /d1/mathpack add sub mul div
 </literallayout>

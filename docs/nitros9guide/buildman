@@ -17,5 +17,10 @@ cat -  > temp$$ <<wrapper
 &refentrypage;
 </article>
 wrapper
-docbook2man temp$$ 
+UNAME_S=$(uname -s)
+if [ "$UNAME_S" = "Darwin" ]; then
+    pandoc -f docbook -t man -o $1.1 temp$$
+else
+    docbook2man temp$$
+fi
 rm temp$$

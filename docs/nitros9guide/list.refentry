@@ -32,8 +32,7 @@ For more information see: <xref linkend="sec2.3"/>, <xref linkend="sec3.9.2"/>
 </para>
 </refsect1>
 <refsect1><title>Examples</title>
-<literallayout>
-list /d0/startup &gt;/p &amp;        (output is redirected to printer)
+<literallayout>list /d0/startup &gt;/p &amp;        (output is redirected to printer)
 
 list /d1/user5/document /d0/myfile /d0/Bob/text
 

@@ -25,8 +25,7 @@ It is not possible to change the names of devices, <filename class="directory">.
 </para>
 </refsect1>
 <refsect1><title>Examples</title>
-<literallayout>
-rename blue purple
+<literallayout>rename blue purple
 
 rename /D3/user9/test temp
 </literallayout>

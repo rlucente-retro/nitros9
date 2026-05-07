@@ -1,19 +1,25 @@
 BOOK		= os9sysprog
 STYLESHEET	= ../stylesheets/docbook-utils.dsl
+include ../docs_rules.mak
 
 all:	$(BOOK).pdf
 
 $(BOOK).pdf: $(BOOK).docbook $(STYLESHEET)
-	 docbook2pdf -d "$(STYLESHEET)#print" $(BOOK).docbook
+	$(call DB2PDF,$(BOOK).docbook,$(BOOK).pdf)
 
 $(BOOK).ps: $(BOOK).docbook $(STYLESHEET)
-	 docbook2ps -d "$(STYLESHEET)#print" $(BOOK).docbook
+ifeq ($(IS_DARWIN),1)
+	$(call DB2PDF,$(BOOK).docbook,$(BOOK).pdf)
+	pdf2ps $(BOOK).pdf $(BOOK).ps
+else
+	$(DB2PS) $(BOOK).docbook
+endif
 
 $(BOOK).html: $(BOOK).docbook $(STYLESHEET)
 	$(RM) *.html
 #	jade -t sgml -V html-index -d /usr/share/sgml/docbook/dsssl-stylesheets-1.64/html/docbook.dsl $(BOOK).docbook
 #	collateindex.pl -p -o index.docbook HTML.index
-	docbook2html -d "$(STYLESHEET)#html" $(BOOK).docbook
+	$(call DB2HTML,$(BOOK).docbook,$(BOOK).html)
 
 print:
 	psnup -2 $(BOOK).ps | lpr

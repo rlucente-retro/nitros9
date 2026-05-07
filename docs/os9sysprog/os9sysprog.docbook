@@ -1373,8 +1373,7 @@ Managers call specific routines in the device driver through this
 table, passing a pointer to a path decriptor and the hardware control
 register address in the MPU registers. The branch table looks like:
 </para>
-<literallayout>
-+0 = Device Initialization Routine
+<literallayout>+0 = Device Initialization Routine
 +3 = Read From Device
 +6 = Write to Device
 +9 = Get Device Status
@@ -2145,8 +2144,7 @@ section of path descriptors used by RBFMAN.</para>
 <para>
 State Flag (PD.SMF): the bits of this byte are defined as: 
 </para>
-<literallayout>
-bit 0 = set if current buffer has been altered
+<literallayout>bit 0 = set if current buffer has been altered
 bit 1 = set if current sector is in buffer
 bit 2 = set if descriptor sector in buffer
 </literallayout>
@@ -2326,8 +2324,7 @@ popular Western Digital floppy disk controller IC:</para>
 </tgroup>
 </informaltable>
 
-<literallayout>
-IT.TYP - Device type (All types)
+<literallayout>IT.TYP - Device type (All types)
     bit 0 -- 0 = 5&quot; floppy disk
              1 = 8&quot; floppy disk
     bit 6 -- 0 = Standard OS-9 format
@@ -2608,8 +2605,7 @@ represents in the disk allocation bit map.</para>
 <para>DD.APT This location contains the disk access permission attributes as defined
 below:</para>
 
-<literallayout>
-BIT 7 - D (DIRECTORY IF SET)
+<literallayout>BIT 7 - D (DIRECTORY IF SET)
 BIT 6 - S (SHARABLE IF SET)
 BIT 5 - PX (PUBLIC EXECUTE IF SET)
 BIT 4 - PW (PUBLIC WRITE IF SET)
@@ -2625,8 +2621,7 @@ used to identify a disk so that OS-9 may detect when a disk is
 removed from the drive and another inserted in its place.</para>
 
 <para>DD.FMT DISK FORMAT:</para>
-<literallayout>
-BIT B0 - SIDE
+<literallayout>BIT B0 - SIDE
     0 = SINGLE SIDED
     1 = DOUBLE SIDED
 
@@ -4572,8 +4567,7 @@ to the name of a applications program. Here are some example name strings:</para
 system and assembly-language-level programs. There are three general
 categories:</para>
 
-<para><literallayout>
-1. User mode function requests
+<para><literallayout>1. User mode function requests
 2. System mode function requests
 3. I/O requests
 </literallayout></para>
@@ -4889,11 +4883,11 @@ unsigned long compute_crc()
         crc ^= (*octets++) &lt;&lt; 16;
         for (i = 0; i &lt; 8; i++) {
             crc &lt;&lt;= 1;
-            if (crc & 0x1000000L)
+            if (crc &amp; 0x1000000L)
                 crc ^= 0x800063L;
         }
     }
-    return crc & 0xffffffL;
+    return crc &amp; 0xffffffL;
 }
 </programlisting>
 </para>
@@ -5573,8 +5567,7 @@ but does not cause the signal intercept routine to be executed.</para>
 <para>Some of the signal codes have meanings defined by convention: 
 </para>
 
-<literallayout>
-0 = System Abort (cannot be intercepted)
+<literallayout>0 = System Abort (cannot be intercepted)
 1 = Wake Up Process
 2 = Keyboard Abort
 3 = Keyboard Interrupt
@@ -5858,8 +5851,7 @@ are free for user definition.</para>
 Each process has its own local vectors. Each F$SSWI call sets up one
 type of vector according to the code number passed in A.</para>
 
-<literallayout>
-1 = SWI 
+<literallayout>1 = SWI 
 2 = SWI2 
 3 = SWI3 
 </literallayout>
@@ -6864,8 +6856,7 @@ The pathlist is parsed, and the new file name is entered in the
 specified (or default working) directory. The file is given the
 attributes passed in the B register, which has individual bits
 defined as follows:</para>
-<literallayout>
-bit 0 = read permit
+<literallayout>bit 0 = read permit
 bit 1 = write permit
 bit 2 = execute permit
 bit 3 = public read permit
@@ -6883,8 +6874,7 @@ may allow faster data transfer than <quote>UPDATE</quote>, which
 sometimes needs to preread setors. These access codes are defined
 as given below:
 </para>
-<literallayout>
-2 = Write only
+<literallayout>2 = Write only
 3 = Update (read and write)
 </literallayout>
 
@@ -7385,8 +7375,7 @@ permission attributes. The remaining attributes are specified by
 the byte passed in the B register, which has individual bits
 defined as follows:</para>
 
-<literallayout>
-bit 0 = read permit
+<literallayout>bit 0 = read permit
 bit 1 = write permit
 bit 2 = execute permit
 bit 3 = public read permit
@@ -7438,8 +7427,7 @@ service requests to identify the file.</para>
 <para>The access mode parameter specifies which subsequent read and/or
 write operation are permitted as follows:</para>
 
-<literallayout>
-1 = read mode
+<literallayout>1 = read mode
 2 = write mode
 3 = update mode (both read and write)
 </literallayout>
@@ -7523,8 +7511,7 @@ so that these values in the path descriptor are initialized to
 zero when the path is opened.</para>
 
 <para>The number of bytes requested will be read unless:</para>
-<literallayout>
-A. An end-of-file occurs
+<literallayout>A. An end-of-file occurs
 B. An end-of-record occurs (SCFMAN only)
 C. An error condition occurs.
 </literallayout>
@@ -10884,8 +10871,7 @@ if a full pathlist (a pathlist beginning with a <quote>/</quote>) appears, the
 access mode is ignored.</para>
 
 <para>ACCESS MODES:</para>
-<literallayout>
-1 = Read
+<literallayout>1 = Read
 2 = Write
 3 = Update (read or write)
 4 = Execute

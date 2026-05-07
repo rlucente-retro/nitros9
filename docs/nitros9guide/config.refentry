@@ -185,8 +185,7 @@ device.
 drivers and managers.  "Bootlist" is created in the ROOT directory of
 Drive 0.  <command>Config</command> next displays two clock options:
 </para>
-<literallayout>
- 1 - 60Hz (American)
+<literallayout> 1 - 60Hz (American)
  2 - 50Hz (European)
 </literallayout>
 <para>

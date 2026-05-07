@@ -37,8 +37,7 @@ will be performed on the drive specified.
 <para>
 The options are:
 </para>
-<literallayout>
-  E = Exit if any read error occurs.
+<literallayout>  E = Exit if any read error occurs.
   S = Print single drive prompt message.
  -V = Do not verify.
 #nK = more memory makes backup run faster

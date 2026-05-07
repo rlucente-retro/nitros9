@@ -30,8 +30,7 @@ can change the attributes of any file in the system).
 <para>
 The file permission abbreviations are:
 </para>
-<literallayout>
- d = Directory file
+<literallayout> d = Directory file
  s = Sharable file
  r = Read permit to owner
  w = Write permit to owner

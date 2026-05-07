@@ -18,10 +18,36 @@ and for XML it is
   "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd">
 Furthermore, some elements are terminated with /, such as <void/>, <colspec/> etc.
 
-DOCBOOK SGML SOFTWARE:
----------------------
-To create HTML, PDF or PostScript you must have these RPMs installed on
-your RedHat system:
+DOCBOOK SOFTWARE:
+----------------
+On macOS, you can use Homebrew to install the necessary tools for building 
+the documentation.
+
+Prerequisites for HTML:
+  brew install pandoc libxml2
+
+Prerequisites for PostScript:
+  brew install ghostscript
+
+Prerequisites for PDF:
+  A LaTeX engine is required for Pandoc to generate PDFs. You can install 
+  BasicTeX or the full MacTeX distribution:
+  brew install --cask basictex
+
+  If you use BasicTeX, you will likely need to install additional LaTeX 
+  packages that are required by Pandoc's templates:
+  sudo /Library/TeX/texbin/tlmgr install multirow
+
+Troubleshooting macOS Builds:
+  - If you get "! LaTeX Error: There's no line here to end", it is often 
+    caused by <literallayout> tags starting with a newline or containing 
+    blank lines. The makefiles now include a perl pre-processor to fix 
+    these automatically, but ensuring your DocBook source follows best 
+    practices is recommended.
+  - Ensure /Library/TeX/texbin is in your PATH if pdflatex is not found.
+
+On Linux systems (e.g. RedHat), the traditional docbook-utils or xmlto
+packages are used. You may need the following packages installed:
 
 docbook-dtd41-sgml
 sgml-common

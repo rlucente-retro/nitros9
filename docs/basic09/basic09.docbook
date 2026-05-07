@@ -665,8 +665,7 @@ e.g. program levels within loops are indented for easy reading.
 <para>
 At any given time, &b09; is in one of four modes:
 
-<literallayout>
-SYSTEM MODE: Used for executing system commands.
+<literallayout>SYSTEM MODE: Used for executing system commands.
 EDIT MODE: Used for creating/editing procedures.
 EXECUTION MODE: Used for running procedures.
 DEBUG MODE: Used for testing procedures for errors.
@@ -939,8 +938,7 @@ concurrent processes and other real-time functions.
 <para>
 Examples:
 <informalexample>
-<literallayout>
-B: $copy file1 file2                    Calls the OS-9 copy command
+<literallayout>B: $copy file1 file2                    Calls the OS-9 copy command
 B: $asm sourcefile&amp;                 Calls the assembler as a <emphasis>background</emphasis> task
 B: $basic09 fourier(20)&amp;            Starts <emphasis>another</emphasis> concurrent &b09; program
 </literallayout>
@@ -2319,8 +2317,7 @@ the last byte of the real quantity.
 <figure>
 <title>Internal Representation of REAL Numbers</title>
 
-<literallayout>
-      +--------+--------+--------+--------+--------+
+<literallayout>      +--------+--------+--------+--------+--------+
       |exponent|        |        |        |      |S| &lt;- mant. sign
       +--------+--------+--------+--------+--------+
 byte:     +0       +1       +2       +3       +4
@@ -2379,8 +2376,7 @@ The example below shows the internal storage of a variable dimensioned as
 STRING[6] and assigned a value of "SAM". Notice the byte at +3 contains
 the zero string terminator, and the two following bytes are not used.
 <informalfigure>
-<literallayout>
-      +--------+--------+--------+--------+--------+--------+
+<literallayout>      +--------+--------+--------+--------+--------+--------+
       |   S    |    A   |    M   |   00   |        |        |
       +--------+--------+--------+--------+--------+--------+
 byte:     +0       +1       +2       +3       +4       +5
@@ -2389,8 +2385,7 @@ byte:     +0       +1       +2       +3       +4       +5
 If the value "ROBERT" is assigned to the variable, the zero byte terminator
 is not needed because the STRING fills the storage exactly:
 <informalfigure>
-<literallayout>
-      +--------+--------+--------+--------+--------+--------+
+<literallayout>      +--------+--------+--------+--------+--------+--------+
       |   R    |    O   |    B   |    E   |    R   |    T   |
       +--------+--------+--------+--------+--------+--------+
 byte:     +0       +1       +2       +3       +4       +5
@@ -7237,8 +7232,7 @@ D 000A             Length2  rmb   2          size
 <appendix>
 <title>&b09; Error Codes</title>
 <para>
-<literallayout>
-10 - Unrecognized Symbol
+<literallayout>10 - Unrecognized Symbol
 11 - Excessive Verbage (too many keywords or symbols)
 12 - Illegal Statement Construction
 13 - I-code Overflow (need more workspace memory)

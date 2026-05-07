@@ -27,8 +27,7 @@ For more information see: <xref linkend="sec3.9.4"/>,
 </para>
 </refsect1>
 <refsect1><title>Examples</title>
-<literallayout>
- load new_program
+<literallayout> load new_program
 </literallayout>
 
 <screen>

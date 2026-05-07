@@ -26,8 +26,7 @@
 </refsynopsisdiv>
 
 <refsect1><title>Options</title>
-<literallayout>
-  -? = display help
+<literallayout>  -? = display help
   -z = read command lines from stdin
   -s=type = set screen type for a window on a new screen
 </literallayout>

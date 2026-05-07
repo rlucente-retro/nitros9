@@ -47,8 +47,7 @@ memory fragmentation).
 </refsect1>
 <refsect1>
 <title>Example:</title>
-<literallayout>
-	iniz p t2 [ENTER]
+<literallayout>	iniz p t2 [ENTER]
 </literallayout>
 <para>
 initializes the p (printer) and t2 (terminal 2) devices.

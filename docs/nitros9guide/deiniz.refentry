@@ -47,8 +47,7 @@ using the module.
 </refsect1>
 <refsect1>
 <title>Example</title>
-<literallayout>
-	DEINIZ P T2 [ENTER]
+<literallayout>	DEINIZ P T2 [ENTER]
 </literallayout>
 <para>
 initializes the P (printer) and T2 (terminal 2) devices.

@@ -19,8 +19,7 @@ This command parks the heads on a hard disk device.
 </para>
 </refsect1>
 <refsect1><title>Examples</title>
-<literallayout>
-park /H0
+<literallayout>park /H0
 </literallayout>
 </refsect1>
 </refentry>
