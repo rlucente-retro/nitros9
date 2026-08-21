@@ -9,7 +9,7 @@
 *   2      2026/07/13  Andrew Diller
 * Reworked around the FujiNet transaction protocol (lib/fuji.as).
 
-DEVSLOTS            equ       8                   device slots (firmware MAX_DISK_DEVICES)
+DEVSLOTS            equ       4                   device slots (DriveWire MAX_DWDISK_DEVICES)
 DEVSLOTSZ           equ       38                  hostSlot,mode,filename[36]
 DEVFILESZ           equ       36                  filename field size
 DEVARRSZ            equ       DEVSLOTS*DEVSLOTSZ
@@ -43,11 +43,13 @@ __start             lbsr      NOpen
                     ldd       #OP_FUJI*256+FUJI$ReadDevSlots
                     std       ,x
                     ldy       #2
+                    lda       netpath,u
                     lbsr      FBCmd
                     lbcs      closeerr
 
                     leax      devices,u
                     ldy       #DEVARRSZ
+                    lda       netpath,u
                     lbsr      FBRead
                     lbcs      closeerr
 

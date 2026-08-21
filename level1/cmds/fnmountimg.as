@@ -10,7 +10,7 @@
 *   1      2026/07/13  Andrew Diller
 * Created.
 
-DEVSLOTS            equ       8                   device slots (firmware MAX_DISK_DEVICES)
+DEVSLOTS            equ       4                   device slots (DriveWire MAX_DWDISK_DEVICES)
 
                     section   __os9
 type                equ       Prgrm
@@ -71,6 +71,7 @@ doit                lbsr      NOpen
                     lda       mountmode,u
                     sta       3,x
                     ldy       #4
+                    lda       netpath,u
                     lbsr      FBCmd
 
 closeerr            pshs      b,cc

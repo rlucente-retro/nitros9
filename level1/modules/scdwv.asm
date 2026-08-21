@@ -130,6 +130,7 @@ nosub
                     puls      u
                     leas      2,s                 clean 3 DWsub args from stack
 termbye             clrb
+                    andcc     #^Carry
                     rts
 
 ***********************************************************************
@@ -221,10 +222,13 @@ already
 ; cheat: we know DW.StatTbl is at offset $00 from D.DWStat, do not bother with leax
 ;		leax      DW.StatTbl,x
                     sta       b,x
-InitEx              equ       *
+InitEx              clrb
+                    andcc     #^Carry
                     rts
 InitEx2
                     puls      u
+                    comb
+                    ldb       #E$MNF
                     rts
 
 ; drivewire info
@@ -474,7 +478,10 @@ SendStat
                     endc
                     jsr       DW$Write,u
                     leas      3,s
-                    puls      a,y,x,u,pc
+                    puls      a,y,x,u
+                    clrb
+                    andcc     #^Carry
+                    rts
 
 *************************************************************************
 * SetStat
@@ -623,6 +630,7 @@ FujiFree            ldu       2,s
                     os9       F$SRtMem            release the transfer buffer
                     leas      10,s
                     clrb
+                    andcc     #^Carry
                     rts
 FujiIOE2            puls      cc
                     ldu       2,s
@@ -662,6 +670,7 @@ FujiNoMem           leas      6,s                 F$SRqMem error (carry set) sti
 FujiOut             puls      cc
                     leas      4,s
                     clrb
+                    andcc     #^Carry
                     rts
 FujiIOEr            puls      cc
                     leas      4,s
@@ -698,8 +707,11 @@ relea               lda       PD.CPR,y            get curr proc #
                     cmpa      <SSigID,u           same?
                     bne       ex
                     clr       <SSigID,u           clear process id
-ex                  rts
-sskysns
+ex                  clrb
+                    andcc     #^Carry
+                    rts
+sskysns             clrb
+                    andcc     #^Carry
                     rts
 ssig                pshs      cc
                     orcc      #IntMasks
@@ -726,8 +738,9 @@ comst               leax      PD.OPT,y
                     ldu       >D.DWSubAddr
                     endc
                     jsr       DW$Write,u
-                    clrb
-ssbye               rts
+ssbye               clrb
+                    andcc     #^Carry
+                    rts
 
 * SS.Open processor
 * Entry: X=Register stack pointer

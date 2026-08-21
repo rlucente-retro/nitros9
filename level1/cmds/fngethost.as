@@ -56,11 +56,13 @@ __start             subd      #$0001
                     ldd       #OP_FUJI*256+FUJI$ReadHostSlots
                     std       ,x
                     ldy       #2
+                    lda       netpath,u
                     lbsr      FBCmd
                     lbcs      closeerr
 
                     leax      hostslots,u
                     ldy       #HOSTARRSZ
+                    lda       netpath,u
                     lbsr      FBRead
                     lbcs      closeerr
 

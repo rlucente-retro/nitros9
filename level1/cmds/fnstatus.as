@@ -54,11 +54,13 @@ __start             lbsr      NOpen
                     ldd       #OP_FUJI*256+FUJI$GetAdapterCfg
                     std       ,x
                     ldy       #2
+                    lda       netpath,u
                     lbsr      FBCmd
                     lbcs      closeerr
 
                     leax      config,u
                     ldy       #ADPCFGSZ
+                    lda       netpath,u
                     lbsr      FBRead
                     lbcs      closeerr
                     leax      config,u
@@ -113,10 +115,12 @@ __start             lbsr      NOpen
                     ldd       #OP_FUJI*256+FUJI$GetWifiStatus
                     std       ,x
                     ldy       #2
+                    lda       netpath,u
                     lbsr      FBCmd
                     lbcs      closeerr
                     leax      wifista,u
                     ldy       #1
+                    lda       netpath,u
                     lbsr      FBRead
                     lbcs      closeerr
 

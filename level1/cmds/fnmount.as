@@ -55,6 +55,7 @@ __start             subd      #$0001
                     lda       hostslot,u
                     sta       2,x
                     ldy       #3
+                    lda       netpath,u
                     lbsr      FBCmd
 
 closeerr            pshs      b,cc

@@ -72,13 +72,15 @@ ready@              leax      fbsmall,u
                     puls      u
                     bcs       retry@              wire timeout, try again
                     lda       fbstat,u
-                    bne       ok@                 nonzero means ready
+                    cmpa      #1                  1 = device ready
+                    beq       ok@
 retry@              dec       fbtries,u
                     beq       bad@
                     ldx       #2                  breathe between polls
                     os9       F$Sleep
                     bra       ready@
 ok@                 clrb
+                    andcc     #^Carry
                     puls      a,x,y,u,pc
 bad@                comb
                     ldb       #E$NotRdy
@@ -151,6 +153,7 @@ FBErr               pshs      a,x,y,u
                     orcc      #Carry              report the firmware status in B
                     bra       ex@
 ok@                 clrb
+                    andcc     #^Carry
 ex@                 puls      a,x,y,u,pc
 
 * FBRead - fetch the reply data of the last command

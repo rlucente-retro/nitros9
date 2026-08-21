@@ -27,22 +27,22 @@ DWRead              clra                          clear carry (no framing error)
                     orcc      #IntMasks           mask interrupts
 
 loop@               ldd       #$0000              store counter
-                    std       1+1,s               ?+1,s considering extra stack byte
+                    std       1,s
 loop2@              ldd       WizFi.Base+WizFi_RxD_WR_Cnt
                     bne       getbyte@            if available, get byte
                     mul                           extend the timeout much longer due to faster CPU
                     mul
                     mul
                     mul
-                    ldd       1+1,s               ?+1,s considering extra stack byte
+                    ldd       1,s
                     addb      #$01
                     adca      #$00
-                    std       1+1,s               ?+1,s considering extra stack byte
+                    std       1,s
                     cmpd      #$0000
                     bne       loop2@
-                    lda       0+1,s               get CC off stack, ?+1,s considering extra stack byte
+                    lda       ,s                  get CC off stack
                     anda      #^$04               clear the Z flag to indicate not all bytes received.
-                    sta       0+1,s               ?+1,s considering extra stack byte
+                    sta       ,s
                     bra       bye@
 getbyte@            ldb       WizFi.Base+WizFi_DataReg get the data byte
                     stb       ,u+                 save off acquired byte

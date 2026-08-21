@@ -13,7 +13,7 @@
 
 FILEPATHSZ          equ       256
 
-DEVSLOTS            equ       8                   device slots (firmware MAX_DISK_DEVICES)
+DEVSLOTS            equ       4                   device slots (DriveWire MAX_DWDISK_DEVICES)
 HOSTSLOTS           equ       8                   host slots (firmware MAX_HOSTS)
 
                     section   __os9
@@ -106,6 +106,7 @@ copyloop            lda       ,y+
 
 send                leax      request,u
                     ldy       #5+FILEPATHSZ
+                    lda       netpath,u
                     lbsr      FBCmd
 
 closeerr            pshs      b,cc

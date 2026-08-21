@@ -1,0 +1,13 @@
+echo * Connecting to FujiNet bridge at 192.168.1.100:65504
+echo AT+CIPMUX=0>/wz
+modem /wz
+echo AT+CIPMODE=1>/wz
+modem /wz
+echo AT+CIPSTART="TCP","192.168.1.100",65504>/wz
+sleep 180
+modem /wz
+sleep 60
+echo AT+CIPSEND>/wz
+sleep 60
+echo * Connected. Checking FujiNet status...
+fnstatus

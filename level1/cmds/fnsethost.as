@@ -65,11 +65,13 @@ __start             subd      #$0001
                     ldd       #OP_FUJI*256+FUJI$ReadHostSlots
                     std       ,x
                     ldy       #2
+                    lda       netpath,u
                     lbsr      FBCmd
                     lbcs      closearg
 
                     leax      hostslots,u
                     ldy       #HOSTARRSZ
+                    lda       netpath,u
                     lbsr      FBRead
                     lbcs      closearg
 
@@ -99,6 +101,7 @@ writeback           leax      request,u
                     ldd       #OP_FUJI*256+FUJI$WriteHostSlots
                     std       ,x
                     ldy       #2+HOSTARRSZ
+                    lda       netpath,u
                     lbsr      FBCmd
                     bra       closeerr
 

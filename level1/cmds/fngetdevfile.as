@@ -11,7 +11,7 @@
 *   2      2026/07/13  Andrew Diller
 * Reworked around the FujiNet transaction protocol (lib/fuji.as).
 
-DEVSLOTS            equ       8                   device slots (firmware MAX_DISK_DEVICES)
+DEVSLOTS            equ       4                   device slots (DriveWire MAX_DWDISK_DEVICES)
 
                     section   __os9
 type                equ       Prgrm
@@ -58,11 +58,13 @@ __start             subd      #$0001
                     lda       deviceslot,u
                     sta       2,x
                     ldy       #3
+                    lda       netpath,u
                     lbsr      FBCmd
                     lbcs      closeerr
 
                     leax      response,u
                     ldy       #256
+                    lda       netpath,u
                     lbsr      FBRead
                     lbcs      closeerr
 
