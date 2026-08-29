@@ -1,0 +1,1 @@
+load utilpak1link shellscripts/wiziecho AT+CIPMUX=0 >/wzmodem /wzecho AT+CIPMODE=1 >/wzmodem /wzecho AT+CIPSTART="TCP","tnfs.lucente.lab",65504 >/wzmodem /wzecho AT+CIPSEND >/wzmodem /wz

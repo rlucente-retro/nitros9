@@ -66,49 +66,54 @@ __start             lbsr      NOpen
                     leax      config,u
                     clr       ADPCFGSZ,x     terminate the last field
 
-                    lbsr      PRINTS
+                    lbsr      PrintLbl
                     fcc       /version:  /
                     fcb       $00
                     leax      config+CFGVER,u
                     lbsr      PUTS
-                    lbsr      PRINTS
-                    fcb       C$CR
+                    lbsr      PUTCR
+
+                    lbsr      PrintLbl
                     fcc       /hostname: /
                     fcb       $00
                     leax      config+CFGHOST,u
                     lbsr      PUTS
-                    lbsr      PRINTS
-                    fcb       C$CR
+                    lbsr      PUTCR
+
+                    lbsr      PrintLbl
                     fcc       /ssid:     /
                     fcb       $00
                     leax      config+CFGSSID,u
                     lbsr      PUTS
-                    lbsr      PRINTS
-                    fcb       C$CR
+                    lbsr      PUTCR
+
+                    lbsr      PrintLbl
                     fcc       /ip:       /
                     fcb       $00
                     leax      config+CFGIP,u
                     lbsr      PrintIP
-                    lbsr      PRINTS
-                    fcb       C$CR
+                    lbsr      PUTCR
+
+                    lbsr      PrintLbl
                     fcc       /gateway:  /
                     fcb       $00
                     leax      config+CFGGATE,u
                     lbsr      PrintIP
-                    lbsr      PRINTS
-                    fcb       C$CR
+                    lbsr      PUTCR
+
+                    lbsr      PrintLbl
                     fcc       /netmask:  /
                     fcb       $00
                     leax      config+CFGMASK,u
                     lbsr      PrintIP
-                    lbsr      PRINTS
-                    fcb       C$CR
+                    lbsr      PUTCR
+
+                    lbsr      PrintLbl
                     fcc       /dns:      /
                     fcb       $00
                     leax      config+CFGDNS,u
                     lbsr      PrintIP
-                    lbsr      PRINTS
-                    fcb       C$CR,$00
+                    lbsr      PUTCR
 
 * wifi connection state
                     leax      request,u
@@ -124,7 +129,7 @@ __start             lbsr      NOpen
                     lbsr      FBRead
                     lbcs      closeerr
 
-                    lbsr      PRINTS
+                    lbsr      PrintLbl
                     fcc       /wifi:     /
                     fcb       $00
                     lda       wifista,u
@@ -132,24 +137,44 @@ __start             lbsr      NOpen
                     bne       notconn
                     lbsr      PRINTS
                     fcc       /connected/
-                    fcb       C$CR,$00
+                    fcb       $00
+                    lbsr      PUTCR
                     bra       closeok
-notconn             lbsr      PRINTS
+notconn             lbsr      PrintLbl
                     fcc       /not connected (/
                     fcb       $00
                     clra
                     ldb       wifista,u
                     lbsr      PRINT_DEC
-                    lbsr      PRINTS
-                    fcc       /)/
-                    fcb       C$CR,$00
+                    ldb       #')
+                    lbsr      PUTC
+                    lbsr      PUTCR
 
 closeok             clrb
 closeerr            pshs      b,cc
                     lda       netpath,u
                     os9       I$Close
                     puls      b,cc
-errex               os9       F$Exit
+errex               bcc       cleanex
+                    os9       F$PErr
+cleanex             os9       F$Exit
+
+* print null-terminated label immediately following call without newline
+PrintLbl            pshs      x,u
+                    ldx       4,s                 X = start of label string
+                    tfr       x,u
+lbl_loop@           tst       ,u+
+                    bne       lbl_loop@
+                    stu       4,s                 update return address past null byte
+                    leau      -1,u                U = null byte address
+                    tfr       u,d
+                    subd      #0                  set flags
+                    pshs      x
+                    subd      ,s++                D = string length
+                    tfr       d,y                 Y = byte count to print
+                    lda       #1                  Path 1 = stdout
+                    os9       I$Write
+                    puls      x,u,pc
 
 * print four bytes at X as a dotted decimal address
 PrintIP             pshs      x
@@ -163,9 +188,8 @@ prtip1              pshs      b,x
                     decb
                     beq       prtip2
                     pshs      b,x
-                    lbsr      PRINTS
-                    fcc       /./
-                    fcb       $00
+                    ldb       #'.
+                    lbsr      PUTC
                     puls      b,x
                     bra       prtip1
 prtip2              puls      x,pc

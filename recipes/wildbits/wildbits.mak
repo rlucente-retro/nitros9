@@ -70,7 +70,7 @@ endif
 
 SHELLMODS = shellplus date deiniz echo iniz link load save unlink
 FUJINET_CMDS = fngetdevfile fnsetdevfile fnlisthosts fngethost fnsethost \
-	fnlistdevs fnmount fnmountimg fnstatus
+	fnlistdevs fnmount fnmountimg fnstatus fndiscon
 ifeq ($(FUJINET),1)
 LFLAGS += -lfuji
 CMDS_EXTRA += $(FUJINET_CMDS)

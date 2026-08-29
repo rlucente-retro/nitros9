@@ -9,5 +9,6 @@ modem /wz
 sleep 60
 echo AT+CIPSEND>/wz
 sleep 60
+deiniz wz
 echo * Connected. Checking FujiNet status...
 fnstatus

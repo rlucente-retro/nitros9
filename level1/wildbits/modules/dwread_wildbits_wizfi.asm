@@ -2,7 +2,7 @@
 *
 * DWRead
 *    Receive a response from the DriveWire server.
-*    Times out if serial port goes idle for more than 1.4 (0.7) seconds.
+*    Times out if serial port goes idle for more than ~1.0 second.
 *    Serial data format:  1-8-N-1
 *
 * Entry:
@@ -16,7 +16,6 @@
 *    U is preserved.  All accumulators are clobbered
 *
 
-
 DWRead              clra                          clear carry (no framing error)
                     clrb
                     pshs      u,x,d,cc            preserve registers
@@ -26,26 +25,24 @@ DWRead              clra                          clear carry (no framing error)
 
                     orcc      #IntMasks           mask interrupts
 
-loop@               ldd       #$0000              store counter
-                    std       1,s
-loop2@              ldd       WizFi.Base+WizFi_RxD_WR_Cnt
+loop@               clra
+                    clrb
+                    std       1,s                 reset 16-bit timeout counter
+loop2@              ldd       >WizFi.Base+WizFi_RxD_WR_Cnt
                     bne       getbyte@            if available, get byte
-                    mul                           extend the timeout much longer due to faster CPU
-                    mul
-                    mul
-                    mul
+                    ldb       #70                 ~350 cycle delay on 25MHz CPU
+dly@                decb
+                    bne       dly@
                     ldd       1,s
-                    addb      #$01
-                    adca      #$00
+                    addd      #1                  advance 16-bit counter
                     std       1,s
-                    cmpd      #$0000
-                    bne       loop2@
+                    bne       loop2@              loop until 16-bit wrap (~1.0s at 25MHz)
                     lda       ,s                  get CC off stack
-                    anda      #^$04               clear the Z flag to indicate not all bytes received.
+                    anda      #^$04               clear Z flag: not all bytes received
                     sta       ,s
                     bra       bye@
-getbyte@            ldb       WizFi.Base+WizFi_DataReg get the data byte
-                    stb       ,u+                 save off acquired byte
+getbyte@            ldb       >WizFi.Base+WizFi_DataReg get data byte
+                    stb       ,u+                 save acquired byte
                     abx                           update checksum
                     leay      ,-y                 decrement Y
                     bne       loop@               branch if more to obtain
