@@ -1,0 +1,12 @@
+* ========================================
+* NitrOS-9 Wildbits Jr2 Hardware Self-Test
+* ========================================
+echo "========================================"
+echo " Running Wildbits Jr2 Hardware Self-Test"
+echo "========================================"
+mathtest
+beamtest
+dmatest
+echo "========================================"
+echo " Self-Test Complete"
+echo "========================================"
