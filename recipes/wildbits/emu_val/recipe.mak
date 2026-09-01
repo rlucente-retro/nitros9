@@ -7,7 +7,7 @@ include ../mega.mak
 vpath %.as $(CURDIR)/tests
 
 # Append validation diagnostic commands to the disk image
-CMDS_EXTRA += mathtest beamtest dmatest
+CMDS_EXTRA += mathtest beamtest dmatest wizfitest
 
 # Post-install validation scripts to the DSK image
 VALIDATION_SCRIPTS_DIR = $(CURDIR)/scripts

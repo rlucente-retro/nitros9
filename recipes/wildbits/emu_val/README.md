@@ -15,7 +15,8 @@ recipes/wildbits/emu_val/
 ├── tests/               # Diagnostic test source modules (.as)
 │   ├── mathtest.as      # Hardware Math Coprocessor ($FEE0-$FEFB) test suite
 │   ├── beamtest.as      # TinyVicky II Raster Beam & Line Comparator ($FFD8-$FFDB)
-│   └── dmatest.as       # TinyVicky II 1D/2D DMA Engine ($FEC0-$FED7)
+│   ├── dmatest.as       # TinyVicky II 1D/2D DMA Engine ($FEC0-$FED7)
+│   └── wizfitest.as     # WizFi360 Wi-Fi Hardware & AT Command Interface ($FF20-$FF29)
 └── scripts/             # Automated test scripts installed to /s0/SCRIPTS/
     └── selftest         # Batch script running all diagnostics in sequence
 ```
