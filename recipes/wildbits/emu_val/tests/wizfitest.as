@@ -38,14 +38,14 @@ __start
 
                     lbsr      PRINTS
                     fcc       "=== WIZFI360 WI-FI HARDWARE & AT DIAGNOSTIC ==="
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * ========================================================
                     * TEST 1: Hardware Reset & FIFO State Check ($FF20)
                     * ========================================================
                     lbsr      PRINTS
                     fcc       "[TEST 1] Hardware Reset Handshake ($FF20)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * Pulse Hardware Reset: Assert Reset (Bit 1 = 1), then release (0)
                     lda       #WIZ_CTRL_RESET
@@ -80,7 +80,7 @@ T1_Fail             lbsr      PRINTS
                     * ========================================================
 Test2               lbsr      PRINTS
                     fcc       "[TEST 2] Basic AT Ping Command (AT -> OK)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * Send "AT\r\n"
                     lbsr      SendCmd
@@ -112,7 +112,7 @@ T2_Fail             lbsr      PrintFail
                     * ========================================================
 Test3               lbsr      PRINTS
                     fcc       "[TEST 3] Firmware Version Query (AT+GMR)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     lbsr      SendCmd
                     fcc       "AT+GMR"
@@ -140,7 +140,7 @@ T3_Fail             lbsr      PrintFail
                     * ========================================================
 Test4               lbsr      PRINTS
                     fcc       "[TEST 4] Wi-Fi Mode Query (AT+CWMODE?)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     lbsr      SendCmd
                     fcc       "AT+CWMODE?"
@@ -168,7 +168,7 @@ T4_Fail             lbsr      PrintFail
                     * ========================================================
 Test5               lbsr      PRINTS
                     fcc       "[TEST 5] Connection Status Query (AT+CIPSTATUS)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     lbsr      SendCmd
                     fcc       "AT+CIPSTATUS"
@@ -196,7 +196,7 @@ T5_Fail             lbsr      PrintFail
                     * ========================================================
 Summary             lbsr      PRINTS
                     fcc       "---------------------------------------------------"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     lbsr      PRINTS
                     fcc       "SUMMARY: Passed="
@@ -211,20 +211,20 @@ Summary             lbsr      PRINTS
                     adda      #'0
                     lbsr      PUTC
                     lbsr      PRINTS
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     tst       fail_count,u
                     bne       ExitErr
 
                     lbsr      PRINTS
                     fcc       "RESULT: ALL WIZFI360 HARDWARE TESTS PASSED!"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     clrb
                     os9       F$Exit
 
 ExitErr             lbsr      PRINTS
                     fcc       "RESULT: WIZFI360 HARDWARE / FIRMWARE MISMATCH DETECTED!"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     ldb       #1
                     os9       F$Exit
 
@@ -329,12 +329,12 @@ sd_lp               subd      #1
 
 PrintPass           lbsr      PRINTS
                     fcc       " -> [PASS]"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     rts
 
 PrintFail           lbsr      PRINTS
                     fcc       " -> [FAIL]"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     rts
 
 * Print 16-bit word in D (A=MSB, B=LSB) as 4 hex ASCII characters

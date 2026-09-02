@@ -40,14 +40,14 @@ __start
 
                     lbsr      PRINTS
                     fcc       "=== TINYVICKY II DMA ENGINE DIAGNOSTIC ==="
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * ========================================================
                     * TEST 1: 1D Linear DMA Fill (Fill 256 bytes with $5A)
                     * ========================================================
                     lbsr      PRINTS
                     fcc       "[TEST 1] 1D Linear DMA Fill (256 bytes with $5A)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * Clear destination buffer first with $00
                     leax      dma_dst_buf,u
@@ -104,7 +104,7 @@ T1_Fail             lbsr      PRINTS
                     * ========================================================
 Test2               lbsr      PRINTS
                     fcc       "[TEST 2] 1D Linear DMA Copy (256 bytes: ramp pattern)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * Fill source buffer with ramp pattern 0..255
                     leax      dma_src_buf,u
@@ -169,7 +169,7 @@ T2_Fail             lbsr      PRINTS
                     * ========================================================
 Test3               lbsr      PRINTS
                     fcc       "[TEST 3] 2D Rectangular Blit (16x16 block, stride 32)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * Clear 1024-byte destination buffer
                     leax      dma_dst_buf,u
@@ -222,7 +222,7 @@ clr3_lp             clr       ,x+
                     * ========================================================
 Summary             lbsr      PRINTS
                     fcc       "---------------------------------------------------"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     lbsr      PRINTS
                     fcc       "SUMMARY: Passed="
@@ -237,20 +237,20 @@ Summary             lbsr      PRINTS
                     adda      #'0
                     lbsr      PUTC
                     lbsr      PRINTS
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     tst       fail_count,u
                     bne       ExitErr
 
                     lbsr      PRINTS
                     fcc       "RESULT: ALL DMA TESTS COMPLETED SUCCESSFULLY!"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     clrb
                     os9       F$Exit
 
 ExitErr             lbsr      PRINTS
                     fcc       "RESULT: DMA ENGINE HARDWARE MISMATCH DETECTED!"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     ldb       #1
                     os9       F$Exit
 
@@ -258,12 +258,12 @@ ExitErr             lbsr      PRINTS
 
 PrintPass           lbsr      PRINTS
                     fcc       " -> [PASS]"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     rts
 
 PrintFail           lbsr      PRINTS
                     fcc       " -> [FAIL]"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     rts
 
 PUTC                pshs      a,b,cc,x,y

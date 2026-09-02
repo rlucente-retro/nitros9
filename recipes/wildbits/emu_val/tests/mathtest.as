@@ -38,14 +38,14 @@ __start
 
                     lbsr      PRINTS
                     fcc       "=== WILDBITS JR2 MATH COPROCESSOR DIAGNOSTIC ==="
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * ========================================================
                     * TEST 1: MULU Small Values (100 * 200 = 20000 -> $4E20)
                     * ========================================================
                     lbsr      PRINTS
                     fcc       "[TEST 1] MULU: $0064 * $00C8 (100 * 200)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     ldd       #100
                     std       >MATH_MULU_A
@@ -80,7 +80,7 @@ T1_Fail             lbsr      PrintFail
                     * ========================================================
 Test2               lbsr      PRINTS
                     fcc       "[TEST 2] MULU: $FFFF * $FFFF (65535 * 65535)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     ldd       #$FFFF
                     std       >MATH_MULU_A
@@ -114,7 +114,7 @@ T2_Fail             lbsr      PrintFail
                     * ========================================================
 Test3               lbsr      PRINTS
                     fcc       "[TEST 3] DIVU: $03ED / $000A (1005 / 10)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     ldd       #10
                     std       >MATH_DIVU_DEN
@@ -152,7 +152,7 @@ T3_Fail             lbsr      PrintFail
                     * ========================================================
 Test4               lbsr      PRINTS
                     fcc       "[TEST 4] DIVU: $04D2 / $0000 (1234 / 0 - DivZero Guard)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     ldd       #0
                     std       >MATH_DIVU_DEN
@@ -190,7 +190,7 @@ T4_Fail             lbsr      PrintFail
                     * ========================================================
 Test5               lbsr      PRINTS
                     fcc       "[TEST 5] ADD : $0000FFFF + $00000001 (32-bit Carry)"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     ldd       #0
                     std       >MATH_ADD_A
@@ -229,7 +229,7 @@ T5_Fail             lbsr      PrintFail
                     * ========================================================
 Summary             lbsr      PRINTS
                     fcc       "---------------------------------------------------"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     lbsr      PRINTS
                     fcc       "SUMMARY: Passed="
@@ -244,20 +244,20 @@ Summary             lbsr      PRINTS
                     adda      #'0
                     lbsr      PUTC
                     lbsr      PRINTS
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     tst       fail_count,u
                     bne       ExitErr
 
                     lbsr      PRINTS
                     fcc       "RESULT: ALL MATH TESTS PASSED (100% PARITY)!"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     clrb
                     os9       F$Exit
 
 ExitErr             lbsr      PRINTS
                     fcc       "RESULT: MATH COPROCESSOR HARDWARE MISMATCH DETECTED!"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     ldb       #1
                     os9       F$Exit
 
@@ -265,12 +265,12 @@ ExitErr             lbsr      PRINTS
 
 PrintPass           lbsr      PRINTS
                     fcc       " -> [PASS]"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     rts
 
 PrintFail           lbsr      PRINTS
                     fcc       " -> [FAIL]"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     rts
 
 * Print 16-bit word in D as 4 hex ASCII characters

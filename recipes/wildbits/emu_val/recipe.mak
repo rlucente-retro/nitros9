@@ -2,6 +2,7 @@
 
 RECIPE = wildbits_emu_val
 include ../mega.mak
+BOOTMODS_EXTRA += $(PIPE)
 
 # Add tests/ subfolder to assembly vpath
 vpath %.as $(CURDIR)/tests

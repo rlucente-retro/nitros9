@@ -27,7 +27,7 @@ INTC_MASK_0         equ       $FE2C
 __start
                     lbsr      PRINTS
                     fcc       "=== TINYVICKY II RASTER BEAM DIAGNOSTIC ==="
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * ========================================================
                     * PART 1: Capture 8 Real-Time Samples
@@ -55,7 +55,7 @@ dly_lp              subd      #1
                     * Print Header
                     lbsr      PRINTS
                     fcc       "[RASTER BEAM POSITION SAMPLES]"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * Print 8 Samples
                     leax      sample_rows,u
@@ -98,7 +98,7 @@ IsActive            lbsr      PRINTS
 PrintCol            ldd       ,y++
                     lbsr      PrintHexWord
                     lbsr      PRINTS
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     inc       ,s
                     lda       ,s
@@ -111,7 +111,7 @@ PrintCol            ldd       ,y++
                     * ========================================================
                     lbsr      PRINTS
                     fcc       "[VALIDATING BOUNDS & ROLLOVER (0..524)]"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     ldx       #1000
 CheckLoop           ldd       >VKY_RAST_ROW
@@ -122,14 +122,14 @@ CheckLoop           ldd       >VKY_RAST_ROW
 
                     lbsr      PRINTS
                     fcc       "  1000 Scanline Queries: All within bounds [0..524]"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * ========================================================
                     * PART 3: Line Comparator Match ($FFD8-$FFD9)
                     * ========================================================
                     lbsr      PRINTS
                     fcc       "[TESTING LINE COMPARATOR REGISTERS]"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * Program Line Compare for line 200 ($00C8)
                     ldd       #200
@@ -137,7 +137,7 @@ CheckLoop           ldd       >VKY_RAST_ROW
 
                     lbsr      PRINTS
                     fcc       "  Arming Line Comparator for Scanline 200 ($00C8)..."
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
                     * Wait for scanline 200 to be traversed
                     ldx       #25000
@@ -149,7 +149,7 @@ WaitLine            ldd       >VKY_RAST_ROW
 
                     lbsr      PRINTS
                     fcc       "  WARNING: Scanline 200 traversal timed out"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     bra       Summary
 
 LineHit             lbsr      PRINTS
@@ -158,20 +158,20 @@ LineHit             lbsr      PRINTS
                     ldd       >VKY_RAST_COL
                     lbsr      PrintHexWord
                     lbsr      PRINTS
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
 
 Summary             lbsr      PRINTS
                     fcc       "---------------------------------------------------"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     lbsr      PRINTS
                     fcc       "RESULT: RASTER BEAM & TIMERS 100% OPERATIONAL!"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     clrb
                     os9       F$Exit
 
 RowOverflow         lbsr      PRINTS
                     fcc       "FAIL: RAST_ROW exceeded maximum scanline limit (>524)!"
-                    fcb       C$CR,C$LF,0
+                    fcb       C$CR,0
                     ldb       #1
                     os9       F$Exit
 
