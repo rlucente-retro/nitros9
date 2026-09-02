@@ -8,6 +8,11 @@ mathtest
 beamtest
 dmatest
 wizfitest
+rtctest
+diptest
+mmutest
+uarttest
+timertest
 echo "========================================"
 echo " Self-Test Complete"
 echo "========================================"

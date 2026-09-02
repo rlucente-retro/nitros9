@@ -8,7 +8,7 @@ BOOTMODS_EXTRA += $(PIPE)
 vpath %.as $(CURDIR)/tests
 
 # Append validation diagnostic commands to the disk image
-CMDS_EXTRA += mathtest beamtest dmatest wizfitest
+CMDS_EXTRA += mathtest beamtest dmatest wizfitest rtctest diptest mmutest uarttest timertest
 
 # Post-install validation scripts to the DSK image
 VALIDATION_SCRIPTS_DIR = $(CURDIR)/scripts

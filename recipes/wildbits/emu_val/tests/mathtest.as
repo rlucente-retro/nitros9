@@ -302,7 +302,15 @@ PUTC                pshs      a,b,cc,x,y
                     ldy       #1
                     lda       #1               * stdout
                     os9       I$Write
-                    puls      a,b,cc,x,y,pc
+                    lda       ,x
+                    cmpa      #C$CR
+                    bne       putc_done
+                    lda       #C$LF
+                    sta       ,x
+                    ldy       #1
+                    lda       #1
+                    os9       I$Write
+putc_done           puls      a,b,cc,x,y,pc
 
 * Inline string print (100% register preserving)
 PRINTS              pshs      x
