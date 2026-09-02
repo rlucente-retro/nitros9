@@ -125,6 +125,7 @@ Test2               lbsr      PRINTS
                     fcc       "[TEST 2] INTC Group 0 Mask Register R/W ($FE2C)"
                     fcb       C$CR,0
 
+                    orcc      #$50            * Mask CPU IRQs while modifying INTC masks
                     lda       >INTC_MASK_0
                     sta       orig_mask,u
 
@@ -145,6 +146,7 @@ Test2               lbsr      PRINTS
                     * Restore mask
                     lda       orig_mask,u
                     sta       >INTC_MASK_0
+                    andcc     #^$50           * Re-enable CPU IRQs
 
                     lbsr      PRINTS
                     fcc       "         INTC_MASK_0 R/W Passed ($55, $AA)"
@@ -155,6 +157,7 @@ Test2               lbsr      PRINTS
 
 T2_Fail             lda       orig_mask,u
                     sta       >INTC_MASK_0
+                    andcc     #^$50           * Re-enable CPU IRQs
                     lbsr      PrintFail
                     inc       fail_count,u
 
@@ -165,6 +168,7 @@ Test3               lbsr      PRINTS
                     fcc       "[TEST 3] INTC Group 0 Edge Register R/W ($FE28)"
                     fcb       C$CR,0
 
+                    orcc      #$50            * Mask CPU IRQs
                     lda       >INTC_EDGE_0
                     sta       orig_edge,u
 
@@ -178,6 +182,7 @@ Test3               lbsr      PRINTS
                     * Restore edge
                     lda       orig_edge,u
                     sta       >INTC_EDGE_0
+                    andcc     #^$50           * Re-enable CPU IRQs
 
                     lbsr      PRINTS
                     fcc       "         INTC_EDGE_0 R/W Passed ($33)"
@@ -188,6 +193,7 @@ Test3               lbsr      PRINTS
 
 T3_Fail             lda       orig_edge,u
                     sta       >INTC_EDGE_0
+                    andcc     #^$50           * Re-enable CPU IRQs
                     lbsr      PrintFail
                     inc       fail_count,u
 
@@ -199,12 +205,15 @@ Test4               lbsr      PRINTS
                     fcb       C$CR,0
 
                     lda       >INTC_PENDING_0
+                    sta       temp_buf+1,u
                     lbsr      PRINTS
                     fcc       "         INTC_PENDING_0 Readback: $"
                     fcb       0
+                    lda       temp_buf+1,u
                     lbsr      PrintHexByte
 
                     * Perform W1C (write back value)
+                    lda       temp_buf+1,u
                     sta       >INTC_PENDING_0
 
                     lbsr      PrintPass

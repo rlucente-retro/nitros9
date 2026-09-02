@@ -6,13 +6,13 @@ echo " Running Wildbits Jr2 Hardware Self-Test"
 echo "========================================"
 mathtest
 beamtest
-dmatest
 wizfitest
 rtctest
 diptest
 mmutest
 uarttest
 timertest
+dmatest
 echo "========================================"
 echo " Self-Test Complete"
 echo "========================================"

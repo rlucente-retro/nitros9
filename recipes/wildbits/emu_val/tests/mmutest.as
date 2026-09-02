@@ -199,7 +199,9 @@ T4_Fail             lda       orig_io_ctrl,u
                     * ========================================================
                     * Summary Output
                     * ========================================================
-Summary             lbsr      PRINTS
+Summary             lda       orig_mem_ctrl,u
+                    sta       >MMU_MEM_CTRL
+                    lbsr      PRINTS
                     fcc       "---------------------------------------------------"
                     fcb       C$CR,0
 

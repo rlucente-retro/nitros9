@@ -160,7 +160,12 @@ LineHit             lbsr      PRINTS
                     lbsr      PRINTS
                     fcb       C$CR,0
 
-Summary             lbsr      PRINTS
+Summary             ldd       #$FFFF
+                    std       >VKY_RAST_COL
+                    lda       #$02
+                    sta       >INTC_PENDING_0
+
+                    lbsr      PRINTS
                     fcc       "---------------------------------------------------"
                     fcb       C$CR,0
                     lbsr      PRINTS
