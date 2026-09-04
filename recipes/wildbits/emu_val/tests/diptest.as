@@ -152,8 +152,9 @@ chk_user            * Decode Bits 5..4: User DIP Switches
                     fcb       0
                     lda       dip_val,u
                     anda      #$0F
-                    adda      #'0
-                    lbsr      PUTC
+                    lbsr      Nibble2Hex
+                    lbsr      PRINTS
+                    fcb       C$CR,0
                     lbsr      PrintPass
                     inc       pass_count,u
 
@@ -238,13 +239,13 @@ PUTC                pshs      a,b,cc,x,y
                     os9       I$Write
 putc_done           puls      a,b,cc,x,y,pc
 
-PRINTS              pshs      x
-                    ldx       2,s
+PRINTS              pshs      a,x
+                    ldx       3,s
 prints_lp           lda       ,x+
                     beq       prints_ex
                     lbsr      PUTC
                     bra       prints_lp
-prints_ex           stx       2,s
-                    puls      x,pc
+prints_ex           stx       3,s
+                    puls      a,x,pc
 
                     endsect   0

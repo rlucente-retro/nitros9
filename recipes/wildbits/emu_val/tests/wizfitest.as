@@ -29,6 +29,8 @@ WIZ_STAT_RX_EMPTY   equ       %00000100
 WIZ_CTRL_RESET      equ       %00000010
 WIZ_CTRL_RATE       equ       %00000001
 
+INTC_PENDING_3      equ       $FE23   * INTC Group 3 Pending Register
+
                     section   code
                     export    __start
 
@@ -186,9 +188,42 @@ Test5               lbsr      PRINTS
 
                     lbsr      PrintPass
                     inc       pass_count,u
-                    bra       Summary
+                    bra       Test6
 
 T5_Fail             lbsr      PrintFail
+                    inc       fail_count,u
+
+                    * ========================================================
+                    * TEST 6: Group 3 Hardware Interrupt Flags ($FE23)
+                    * ========================================================
+Test6               lbsr      PRINTS
+                    fcc       "[TEST 6] WizFi360 Group 3 Interrupt Events ($FE23)"
+                    fcb       C$CR,0
+
+                    * Previous AT command exchanges trigger INT_WIZFI_RX (bit 0)
+                    * and INT_WIZFI_TX (bit 5) in INTC Group 3 ($FE23)
+                    lda       >INTC_PENDING_3
+                    lbsr      PRINTS
+                    fcc       "         INTC_PENDING_3 Readback: $"
+                    fcb       0
+                    lbsr      PrintHexByte
+
+                    lda       >INTC_PENDING_3
+                    bita      #$21
+                    beq       T6_Fail
+
+                    * Test W1C: clear bits 0 and 5
+                    lda       #$21
+                    sta       >INTC_PENDING_3
+                    lda       >INTC_PENDING_3
+                    bita      #$21
+                    bne       T6_Fail
+
+                    lbsr      PrintPass
+                    inc       pass_count,u
+                    bra       Summary
+
+T6_Fail             lbsr      PrintFail
                     inc       fail_count,u
 
                     * ========================================================
@@ -205,7 +240,7 @@ Summary             lbsr      PRINTS
                     adda      #'0
                     lbsr      PUTC
                     lbsr      PRINTS
-                    fcc       " / 5 | Failed="
+                    fcc       " / 6 | Failed="
                     fcb       0
                     lda       fail_count,u
                     adda      #'0
@@ -378,13 +413,13 @@ PUTC                pshs      a,b,cc,x,y
 putc_done           puls      a,b,cc,x,y,pc
 
 * Inline string print (100% register preserving)
-PRINTS              pshs      x
-                    ldx       2,s
+PRINTS              pshs      a,x
+                    ldx       3,s
 prints_lp           lda       ,x+
                     beq       prints_ex
                     lbsr      PUTC
                     bra       prints_lp
-prints_ex           stx       2,s
-                    puls      x,pc
+prints_ex           stx       3,s
+                    puls      a,x,pc
 
                     endsect   0

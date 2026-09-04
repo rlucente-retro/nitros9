@@ -313,13 +313,13 @@ PUTC                pshs      a,b,cc,x,y
 putc_done           puls      a,b,cc,x,y,pc
 
 * Inline string print (100% register preserving)
-PRINTS              pshs      x
-                    ldx       2,s
+PRINTS              pshs      a,x
+                    ldx       3,s
 prints_lp           lda       ,x+
                     beq       prints_ex
                     lbsr      PUTC
                     bra       prints_lp
-prints_ex           stx       2,s
-                    puls      x,pc
+prints_ex           stx       3,s
+                    puls      a,x,pc
 
                     endsect   0

@@ -16,6 +16,7 @@ fail_count          rmb       1
 orig_lcr            rmb       1
 orig_ier            rmb       1
 orig_scr            rmb       1
+lsr_val             rmb       1
 temp_buf            rmb       16
 stack               rmb       200     * Stack at end
                     endsect
@@ -31,6 +32,8 @@ UART_MCR            equ       $FE64   * Modem Control Register
 UART_LSR            equ       $FE65   * Line Status Register
 UART_MSR            equ       $FE66   * Modem Status Register
 UART_SCR            equ       $FE67   * Scratchpad Register
+
+INTC_PENDING_1      equ       $FE21   * INTC Group 1 Pending Register
 
                     section   code
                     export    __start
@@ -201,20 +204,51 @@ Test4               lbsr      PRINTS
                     fcb       C$CR,0
 
                     lda       >UART_LSR
+                    sta       lsr_val,u
                     lbsr      PRINTS
                     fcc       "         LSR Readback: $"
                     fcb       0
+                    lda       lsr_val,u
                     lbsr      PrintHexByte
 
                     * Check if THRE (bit 5) and TEMT (bit 6) are set ($60)
+                    lda       lsr_val,u
                     bita      #$60
                     beq       T4_Fail
 
                     lbsr      PrintPass
                     inc       pass_count,u
-                    bra       Summary
+                    bra       Test5
 
 T4_Fail             lbsr      PrintFail
+                    inc       fail_count,u
+
+                    * ========================================================
+                    * TEST 5: INTC Group 1 UART Interrupt Line ($FE21)
+                    * ========================================================
+Test5               lbsr      PRINTS
+                    fcc       "[TEST 5] INTC Group 1 UART Line Status ($FE21)"
+                    fcb       C$CR,0
+
+                    * In idle state without incoming bytes, INT_UART (bit 0) is 0
+                    lda       >INTC_PENDING_1
+                    lbsr      PRINTS
+                    fcc       "         INTC_PENDING_1: $"
+                    fcb       0
+                    lbsr      PrintHexByte
+
+                    * W1C test: write bit 0 to clear any pending UART event
+                    lda       #$01
+                    sta       >INTC_PENDING_1
+                    lda       >INTC_PENDING_1
+                    bita      #$01
+                    bne       T5_Fail
+
+                    lbsr      PrintPass
+                    inc       pass_count,u
+                    bra       Summary
+
+T5_Fail             lbsr      PrintFail
                     inc       fail_count,u
 
                     * ========================================================
@@ -231,7 +265,7 @@ Summary             lbsr      PRINTS
                     adda      #'0
                     lbsr      PUTC
                     lbsr      PRINTS
-                    fcc       " / 4 | Failed="
+                    fcc       " / 5 | Failed="
                     fcb       0
                     lda       fail_count,u
                     adda      #'0
@@ -298,13 +332,13 @@ PUTC                pshs      a,b,cc,x,y
                     os9       I$Write
 putc_done           puls      a,b,cc,x,y,pc
 
-PRINTS              pshs      x
-                    ldx       2,s
+PRINTS              pshs      a,x
+                    ldx       3,s
 prints_lp           lda       ,x+
                     beq       prints_ex
                     lbsr      PUTC
                     bra       prints_lp
-prints_ex           stx       2,s
-                    puls      x,pc
+prints_ex           stx       3,s
+                    puls      a,x,pc
 
                     endsect   0

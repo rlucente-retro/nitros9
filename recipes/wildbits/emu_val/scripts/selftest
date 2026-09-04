@@ -12,7 +12,7 @@ diptest
 mmutest
 uarttest
 timertest
-dmatest
+cursortest
 echo "========================================"
 echo " Self-Test Complete"
 echo "========================================"

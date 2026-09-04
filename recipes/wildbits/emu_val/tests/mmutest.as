@@ -17,7 +17,9 @@ slot4_val           rmb       1
 orig_mem_ctrl       rmb       1
 orig_io_ctrl        rmb       1
 orig_slot4_lut2     rmb       1
+orig_slot5_lut2     rmb       1
 orig_cram_byte      rmb       1
+cart_addr           rmb       2
 temp_buf            rmb       16
 stack               rmb       200     * Stack at end
                     endsect
@@ -189,10 +191,119 @@ Test4               lbsr      PRINTS
                     fcb       0
                     lbsr      PrintPass
                     inc       pass_count,u
-                    bra       Summary
+                    bra       Test5
 
 T4_Fail             lda       orig_io_ctrl,u
                     sta       >MMU_IO_CTRL
+                    lbsr      PrintFail
+                    inc       fail_count,u
+
+                    * ========================================================
+                    * TEST 5: Cartridge Decode Blocks $80-$9F & Mapping
+                    * ========================================================
+Test5               lbsr      PRINTS
+                    fcc       "[TEST 5] Cartridge Decode Blocks $80-$9F Isolation"
+                    fcb       C$CR,0
+
+                    * In Edit-LUT 2, test mapping Cartridge Blocks $80 and $90
+                    lda       orig_mem_ctrl,u
+                    anda      #$0F
+                    ora       #$20            * Edit LUT 2
+                    sta       >MMU_MEM_CTRL
+
+                    lda       >MMU_SLOT_4
+                    sta       orig_slot4_lut2,u
+                    lda       >MMU_SLOT_5
+                    sta       orig_slot5_lut2,u
+
+                    * Write Block $80 to Slot 4, Block $90 to Slot 5
+                    lda       #$80
+                    sta       >MMU_SLOT_4
+                    lda       #$90
+                    sta       >MMU_SLOT_5
+
+                    * Verify readback from Edit-LUT 2 slot registers
+                    lda       >MMU_SLOT_4
+                    cmpa      #$80
+                    lbne      T5_EditFail
+                    lda       >MMU_SLOT_5
+                    cmpa      #$90
+                    lbne      T5_EditFail
+
+                    * Restore Edit-LUT 2
+                    lda       orig_slot4_lut2,u
+                    sta       >MMU_SLOT_4
+                    lda       orig_slot5_lut2,u
+                    sta       >MMU_SLOT_5
+                    lda       orig_mem_ctrl,u
+                    sta       >MMU_MEM_CTRL
+
+                    * Now test dynamic mapping of Cartridge Block $80 via F$MapBlk
+                    pshs      u
+                    ldx       #$80            * Cartridge block $80 (/c0)
+                    ldb       #1              * 1 block
+                    os9       F$MapBlk
+                    lbcs      T5_MapErr
+                    tfr       u,x
+                    puls      u
+                    stx       cart_addr,u
+
+                    * Test write and read pattern $5A to Cartridge memory
+                    lda       #$5A
+                    sta       ,x
+                    lda       ,x
+                    cmpa      #$5A
+                    lbne      T5_DataErr
+
+                    * Test write and read pattern $A5
+                    lda       #$A5
+                    sta       ,x
+                    lda       ,x
+                    cmpa      #$A5
+                    lbne      T5_DataErr
+
+                    * Clean up mapped block
+                    ldx       cart_addr,u
+                    pshs      u
+                    tfr       x,u
+                    ldb       #1
+                    os9       F$ClrBlk
+                    puls      u
+
+                    lbsr      PRINTS
+                    fcc       "         Cartridge Decode & Mapping Verified"
+                    fcb       0
+                    lbsr      PrintPass
+                    inc       pass_count,u
+                    lbra      Summary
+
+T5_EditFail         lda       orig_slot4_lut2,u
+                    sta       >MMU_SLOT_4
+                    lda       orig_slot5_lut2,u
+                    sta       >MMU_SLOT_5
+                    lda       orig_mem_ctrl,u
+                    sta       >MMU_MEM_CTRL
+                    lbsr      PrintFail
+                    inc       fail_count,u
+                    lbra      Summary
+
+T5_MapErr           puls      u
+                    lbsr      PRINTS
+                    fcc       "         F$MapBlk on Block $80 Failed"
+                    fcb       0
+                    lbsr      PrintFail
+                    inc       fail_count,u
+                    lbra      Summary
+
+T5_DataErr          ldx       cart_addr,u
+                    pshs      u
+                    tfr       x,u
+                    ldb       #1
+                    os9       F$ClrBlk
+                    puls      u
+                    lbsr      PRINTS
+                    fcc       "         Cartridge Data Mismatch"
+                    fcb       0
                     lbsr      PrintFail
                     inc       fail_count,u
 
@@ -212,7 +323,7 @@ Summary             lda       orig_mem_ctrl,u
                     adda      #'0
                     lbsr      PUTC
                     lbsr      PRINTS
-                    fcc       " / 4 | Failed="
+                    fcc       " / 5 | Failed="
                     fcb       0
                     lda       fail_count,u
                     adda      #'0
@@ -279,13 +390,13 @@ PUTC                pshs      a,b,cc,x,y
                     os9       I$Write
 putc_done           puls      a,b,cc,x,y,pc
 
-PRINTS              pshs      x
-                    ldx       2,s
+PRINTS              pshs      a,x
+                    ldx       3,s
 prints_lp           lda       ,x+
                     beq       prints_ex
                     lbsr      PUTC
                     bra       prints_lp
-prints_ex           stx       2,s
-                    puls      x,pc
+prints_ex           stx       3,s
+                    puls      a,x,pc
 
                     endsect   0

@@ -1,6 +1,6 @@
 # Wildbits Hardware & Emulator Validation Recipe (`emu_val`)
 
-This recipe builds a specialized NitrOS-9 Level 2 SD Card disk image (`l2_wildbits_emu_valjr2.dsk`) designed to validate hardware features, FPGA registers, and emulator (MAME) subsystems for the **Wildbits Jr2 / K2** platforms.
+This recipe builds a specialized NitrOS-9 Level 2 SD Card disk image (`l2_wildbits_emu_valjr2.dsk`) designed to validate hardware features, FPGA registers, and emulator (MAME) subsystems specifically for the **Wildbits Jr2** platform (this is only for the Jr2 and not the K2).
 
 ---
 
@@ -15,8 +15,14 @@ recipes/wildbits/emu_val/
 ├── tests/               # Diagnostic test source modules (.as)
 │   ├── mathtest.as      # Hardware Math Coprocessor ($FEE0-$FEFB) test suite
 │   ├── beamtest.as      # TinyVicky II Raster Beam & Line Comparator ($FFD8-$FFDB)
-│   ├── dmatest.as       # TinyVicky II 1D/2D DMA Engine ($FEC0-$FED7)
-│   └── wizfitest.as     # WizFi360 Wi-Fi Hardware & AT Command Interface ($FF20-$FF29)
+│   ├── dmatest.as       # TinyVicky II 1D/2D DMA Engine (planned hardware)
+│   ├── wizfitest.as     # WizFi360 Wi-Fi Hardware, AT Commands, and Group 3 IRQs
+│   ├── rtctest.as       # bq4802 Real-Time Clock ($FE40-$FE4F) & NVRAM registers
+│   ├── diptest.as       # Hardware Machine ID ($FE07), SYS0/1, and DIP Switches ($FF90)
+│   ├── mmutest.as       # MMU LUT Selectors, Constant RAM, Vector RAM, Cartridge Decode
+│   ├── uarttest.as      # 16550 UART ($FE60-$FE67) & INTC Group 1 UART IRQ line
+│   ├── timertest.as     # 24-bit Timers (0 & 1) & INTC 4-Group Registers ($FE20-$FE3F)
+│   └── cursortest.as    # TinyVicky II Video Master Controls & Hardware Text Cursor ($FFC0-$FFD7)
 └── scripts/             # Automated test scripts installed to /s0/SCRIPTS/
     └── selftest         # Batch script running all diagnostics in sequence
 ```
