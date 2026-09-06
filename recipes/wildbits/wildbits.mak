@@ -83,7 +83,7 @@ endif
 CMDS += $(STDCMDS) shell \
 	bootos9 scfg wbinfo wbreset modem \
 inetd telnet dw httpd $(BASIC09) $(BF) \
-	$(CMDS_EXTRA) wildspeed w6100eth lcdload
+	$(CMDS_EXTRA) wildspeed w6100eth w6100recv lcdload wmset
 
 ifeq ($(LEVEL),2)
 UTILPAK1_MODS = attr copy date del deiniz dir display list makdir mdir \
@@ -134,6 +134,8 @@ SYS_TEXT_FILES = $(LEVEL1)/sys/motd $(LEVEL1)/sys/errmsg $(LEVEL1)/sys/password 
 	$(SYS_DIR)/helpmsg $(SYS_DIR)/inetd.conf
 SYS_BIN_FILES =
 endif
+
+SYS_TEXT_FILES += $(LEVEL1)/wildbits/sys/w6100ipconfig
 
 all: libs $(DSKIMAGE)
 
@@ -229,6 +231,9 @@ $(MODDIR)/shell: $(addprefix $(MODDIR)/,$(SHELLMODS)) | $(MODDIR)
 	$(MERGE) $(addprefix $(MODDIR)/,$(SHELLMODS)) >$@
 
 $(MODDIR)/w6100eth: $(LEVEL1)/wildbits/cmds/w6100eth.as | $(MODDIR)
+	$(AS) $(AFLAGS) $< $(ASOUT)$@
+
+$(MODDIR)/w6100recv: $(LEVEL1)/wildbits/cmds/w6100recv.as | $(MODDIR)
 	$(AS) $(AFLAGS) $< $(ASOUT)$@
 
 $(MODDIR)/lcdload: $(LEVEL1)/wildbits/cmds/lcdload.as | $(MODDIR)
