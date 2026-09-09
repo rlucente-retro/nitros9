@@ -22,7 +22,7 @@
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       2
+edition             set       3
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
@@ -243,7 +243,7 @@ dma_w1              lda       >DMA_STATUS
                     std       <box_dx
                     ldd       #1
                     std       <box_dy
-                    ldd       #300                300 loops (~10 seconds at 30 fps)
+                    ldd       #900                900 loops (15 seconds at 60 fps)
                     std       <frames_left
 
 AnimLoop            lda       <abort_flag
@@ -624,12 +624,12 @@ msg_header          fcb       $0C                 Clear Screen
                     fcb       C$CR,$0A
                     fcc       "  * 2D Stride DMA Fill : 5 Cascading graphic windows rendered with stride 320"
                     fcb       C$CR,$0A
-                    fcc       "  * 2D Real-Time Blit  : Smooth 40x40 hardware bouncing box @ 30 fps"
+                    fcc       "  * 2D Real-Time Blit  : Smooth 40x40 hardware bouncing box @ 60 fps"
                     fcb       C$CR,$0A
                     fcc       "  * Text Overlay Mode  : NitrOS-9 console text floating directly over VRAM"
                     fcb       C$CR,$0A
                     fcb       C$CR,$0A
-                    fcc       "  -> Press ESC, Space, or any key to exit (or auto-exits in 10 seconds)..."
+                    fcc       "  -> Press ESC, Space, or any key to exit (or auto-exits in 15 seconds)..."
                     fcb       C$CR,$0A,0
 
 msg_clr             fcb       $0C,0               Clear screen on exit
