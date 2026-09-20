@@ -119,7 +119,7 @@ TESTS = $(notdir $(filter-out %.asm,$(wildcard $(TESTS_DIR)/*)))
 # further down, then copied binary into TESTS on the disk with the execute
 # attribute set. They go NOWHERE else - none of these five is in CMDS.
 # Run them as tests/<name>, or chx the execution directory to the folder first.
-TESTS_BIN = memtest rc16test fputest mathtest dmatest sprtest
+TESTS_BIN = memtest rc16test fputest mathtest dmatest sprregtest sprtest
 FONT_DIR = $(LEVEL1)/wildbits/sys/fonts
 BACKGROUND_DIR = $(LEVEL1)/wildbits/sys/backgrounds
 FONTS = 800yfont anglefont applefont bannerfont.sb bigbluefont boldfont boxedfont \
@@ -285,6 +285,9 @@ $(MODDIR)/mathtest: $(TESTS_DIR)/mathtest.asm | $(MODDIR)
 	$(AS) $(AFLAGS) $< $(ASOUT)$@
 
 $(MODDIR)/dmatest: $(TESTS_DIR)/dmatest.asm | $(MODDIR)
+	$(AS) $(AFLAGS) $< $(ASOUT)$@
+
+$(MODDIR)/sprregtest: $(TESTS_DIR)/sprregtest.asm | $(MODDIR)
 	$(AS) $(AFLAGS) $< $(ASOUT)$@
 
 $(MODDIR)/sprtest: $(TESTS_DIR)/sprtest.asm | $(MODDIR)
