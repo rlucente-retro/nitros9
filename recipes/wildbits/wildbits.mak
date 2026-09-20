@@ -96,9 +96,7 @@ CMDS += dmem minted mmap modpatch \
 	shellbg shellbgoff ntptime view utilpak1 fadein fadeout \
 	lutrd black hexed pixview iss
 endif
-# sprites moved OUT of CMDS 2026-09-09 (user): it is a hardware probe, so it
-# lives in TESTS_BIN below and reaches the disk as TESTS/sprites only. Its
-# $(MODDIR)/sprites build rule further down is still what builds it.
+# Hardware probes live in TESTS_BIN below and reach the disk as TESTS/<name>.
 
 BASIC09 = basic09 runb inkey syscall wild
 BASIC09_FILES = $(wildcard $(LANGUAGES)/basic09/samples/*)
@@ -121,7 +119,7 @@ TESTS = $(notdir $(filter-out %.asm,$(wildcard $(TESTS_DIR)/*)))
 # further down, then copied binary into TESTS on the disk with the execute
 # attribute set. They go NOWHERE else - none of these five is in CMDS.
 # Run them as tests/<name>, or chx the execution directory to the folder first.
-TESTS_BIN = sprites math fpu dma memtest
+TESTS_BIN = memtest rc16test fputest mathtest dmatest sprtest
 FONT_DIR = $(LEVEL1)/wildbits/sys/fonts
 BACKGROUND_DIR = $(LEVEL1)/wildbits/sys/backgrounds
 FONTS = 800yfont anglefont applefont bannerfont.sb bigbluefont boldfont boxedfont \
@@ -270,23 +268,26 @@ $(MODDIR)/lcdload: $(LEVEL1)/wildbits/cmds/lcdload.as | $(MODDIR)
 $(MODDIR)/sprtest2: $(LEVEL1)/wildbits/cmds/sprtest2.asm | $(MODDIR)
 	$(AS) $(AFLAGS) $< $(ASOUT)$@
 
-$(MODDIR)/sprites: $(TESTS_DIR)/sprites.asm | $(MODDIR)
-	$(AS) $(AFLAGS) $< $(ASOUT)$@
-
 $(MODDIR)/lutrd: $(LEVEL1)/wildbits/cmds/lutrd.asm | $(MODDIR)
 	$(AS) $(AFLAGS) $< $(ASOUT)$@
 
 # hardware probes for TESTS/ on the disk (TESTS_BIN above)
-$(MODDIR)/math: $(TESTS_DIR)/math.asm | $(MODDIR)
-	$(AS) $(AFLAGS) $< $(ASOUT)$@
-
-$(MODDIR)/fpu: $(TESTS_DIR)/fpu.asm | $(MODDIR)
-	$(AS) $(AFLAGS) $< $(ASOUT)$@
-
-$(MODDIR)/dma: $(TESTS_DIR)/dma.asm | $(MODDIR)
-	$(AS) $(AFLAGS) $< $(ASOUT)$@
-
 $(MODDIR)/memtest: $(TESTS_DIR)/memtest.asm | $(MODDIR)
+	$(AS) $(AFLAGS) $< $(ASOUT)$@
+
+$(MODDIR)/rc16test: $(TESTS_DIR)/rc16test.asm | $(MODDIR)
+	$(AS) $(AFLAGS) $< $(ASOUT)$@
+
+$(MODDIR)/fputest: $(TESTS_DIR)/fputest.asm | $(MODDIR)
+	$(AS) $(AFLAGS) $< $(ASOUT)$@
+
+$(MODDIR)/mathtest: $(TESTS_DIR)/mathtest.asm | $(MODDIR)
+	$(AS) $(AFLAGS) $< $(ASOUT)$@
+
+$(MODDIR)/dmatest: $(TESTS_DIR)/dmatest.asm | $(MODDIR)
+	$(AS) $(AFLAGS) $< $(ASOUT)$@
+
+$(MODDIR)/sprtest: $(TESTS_DIR)/sprtest.asm | $(MODDIR)
 	$(AS) $(AFLAGS) $< $(ASOUT)$@
 
 $(MODDIR)/pwd: pd.asm | $(MODDIR)

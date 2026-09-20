@@ -38,7 +38,7 @@
 *   1      2026/09/09  Claude
 * Created.
 
-                    nam       fpu
+                    nam       fputest
                     ttl       floating point block probe
 
                     ifp1
@@ -79,12 +79,12 @@ line                rmb       80
 stack               rmb       200
 size                equ       .
 
-name                fcs       /fpu/
+name                fcs       /fputest/
                     fcb       edition
 
 hexch               fcc       /0123456789ABCDEF/
 
-t0                  fcc       /fpu ed.1: floating point block at FFE0/
+t0                  fcc       /fputest ed.1: floating point block at FFE0/
                     fcb       C$CR
 t0l                 equ       *-t0
 t1                  fcc       /check          got  exp/

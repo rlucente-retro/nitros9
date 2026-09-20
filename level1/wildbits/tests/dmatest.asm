@@ -53,7 +53,7 @@
 *   1      2026/09/09  Claude
 * Created.
 
-                    nam       dma
+                    nam       dmatest
                     ttl       DMA engine probe
 
                     ifp1
@@ -87,7 +87,7 @@ line                rmb       80
 stack               rmb       200
 size                equ       .
 
-name                fcs       /dma/
+name                fcs       /dmatest/
                     fcb       edition
 
 hexch               fcc       /0123456789ABCDEF/
@@ -106,7 +106,7 @@ iden                fcb       $C4,$C5,$C6,$C7
                     fcb       $D0,$D1,$D2,$D3
                     fcb       $D4,$D5,$D6,$D7
 
-t0                  fcc       /dma ed.1: DMA register file at FEC0 - no transfer is run/
+t0                  fcc       /dmatest ed.1: DMA register file at FEC0 - no transfer is run/
                     fcb       C$CR
 t0l                 equ       *-t0
 texp                fcc       / exp /
