@@ -2,17 +2,18 @@
 * dmashow - TinyVicky II Hardware DMA Engine Visual Demonstration
 *
 * Visually demonstrates:
-*  1. DMA CLUT Load: 1024 bytes palette loaded to VRAM ($183000) via DMA
+*  1. Palette Setup: 256-color palette loaded to CLUT 0 via SS.DfPal
 *  2. 1D Linear DMA Fill: Instantly clearing 76,800 bytes (320x240)
 *  3. 2D Rectangular DMA Fill: Cascading colorful windows with stride 320
 *  4. Real-Time 2D DMA Animation: Smooth 40x40 bouncing box at 30 fps
 *  5. Text Overlay: NitrOS-9 shell text floats directly over graphics
-*  6. Clean Exit: Restores text mode after 10 seconds or on any keypress
+*  6. Clean Exit: Restores text mode after 15 seconds or on any keypress
 ********************************************************************
 
                     nam       dmashowtest
                     ttl       DMA Engine Visual Demo
 
+Level               set       2
                     ifp1
                     use       os9.d
                     use       scf.d
@@ -22,7 +23,7 @@
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       3
+edition             set       4
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
@@ -47,16 +48,14 @@ DMA_STRD_S_L        equ       DMA_BASE_ADDR+DMA_SRC_STRIDE_X_L
 DMA_STRD_D_H        equ       DMA_BASE_ADDR+DMA_DST_STRIDE_Y_H
 DMA_STRD_D_L        equ       DMA_BASE_ADDR+DMA_DST_STRIDE_Y_L
 
-CLUT0_PHYS_ADDR     equ       $183000             Block $C1, offset $1000
-
                     mod       eom,name,tylg,atrv,start,size
 
                     ORG       0
+saved_u             rmb       2                   saved static data register U
 bmblock             rmb       1                   physical starting block of bitmap 0
 bm_phys_h           rmb       1                   24-bit physical base address of BM0
 bm_phys_m           rmb       1
 bm_phys_l           rmb       1
-scratch_mmu         rmb       1
 abort_flag          rmb       1
 box_x               rmb       2
 box_y               rmb       2
@@ -64,7 +63,10 @@ box_dx              rmb       2
 box_dy              rmb       2
 frames_left         rmb       2
 temp_buf            rmb       16
-clut_buf            rmb       1024                1024-byte CLUT buffer
+saved_eko           rmb       1
+saved_int           rmb       1
+saved_qut           rmb       1
+popts               rmb       32
                     rmb       256                 stack
 size                equ       .
 
@@ -72,6 +74,7 @@ name                fcs       /dmashowtest/
                     fcb       edition
 
 start               equ       *
+                    stu       <saved_u            save static register U immediately!
                     clr       <abort_flag
 
 * Set up Signal Intercept Handler (F$Icpt)
@@ -86,6 +89,26 @@ start               equ       *
                     ldy       #0                  0 bytes
                     os9       I$Write
 
+* Save terminal options and set raw input (echo off, break off)
+                    leax      <popts,u
+                    clra                          path 0
+                    ldb       #SS.Opt
+                    os9       I$GetStt
+                    bcs       optsdone@
+                    lda       4,x                 save original echo
+                    sta       <saved_eko
+                    clr       4,x                 echo off
+                    lda       16,x                save original interrupt char (Ctrl-C)
+                    sta       <saved_int
+                    clr       16,x                interrupt char off (deliver as $03)
+                    lda       17,x                save original quit char (Ctrl-E / ESC)
+                    sta       <saved_qut
+                    clr       17,x                quit char off (deliver as $05)
+                    clra                          path 0
+                    ldb       #SS.Opt
+                    os9       I$SetStt
+optsdone@
+
 * ====================================================================
 * Step 1: Allocate Bitmap 0 (320x240, 76,800 bytes)
 * ====================================================================
@@ -98,7 +121,8 @@ start               equ       *
                     cmpb      #E$WADef            already defined?
                     lbne      ExitErr
 
-AllocOk             tfr       x,d                 B = physical starting block
+AllocOk             ldu       <saved_u            restore static U corrupted by SS.AScrn!
+                    tfr       x,d                 B = physical starting block
                     stb       <bmblock
 
 * Compute 24-bit physical address: block * 8192 (block << 13)
@@ -118,35 +142,40 @@ AllocOk             tfr       x,d                 B = physical starting block
                     clr       <bm_phys_l          phys 7:0 = $00
 
 * ====================================================================
-* Step 2: Build 256-Color Palette in clut_buf and DMA-copy to VRAM
+* Step 2: Set CLUT 0 by mapping Block $C1 into Slot 1 ($2000-$3FFF)
 * ====================================================================
-                    lbsr      InitClutBuf
+                    orcc      #IntMasks
+                    lda       >MMU_MEM_CTRL
+                    pshs      a
 
-* Copy clut_buf to CLUT 0 ($183000) using 1D DMA Copy
-                    leax      clut_buf,u
-                    lbsr      GetPhysAddr         returns A=H, B=M, temp_buf=L
-                    sta       >DMA_SRC_H
-                    stb       >DMA_SRC_M
-                    lda       <temp_buf
-                    sta       >DMA_SRC_L
+* Configure Edit LUT = Active LUT so slot write affects running address space
+                    tfr       a,b
+                    andb      #$03                B = active LUT
+                    lslb
+                    lslb
+                    lslb
+                    lslb                          B = active LUT << 4
+                    anda      #$CF                clear edit LUT bits
+                    pshs      b
+                    ora       ,s+
+                    sta       >MMU_MEM_CTRL
 
-                    lda       #$18                $183000
-                    sta       >DMA_DST_H
-                    lda       #$30
-                    sta       >DMA_DST_M
-                    clr       >DMA_DST_L
+* Save original block in Slot 1 and map Block $C1
+                    ldb       >MMU_SLOT_1
+                    pshs      b
+                    lda       #$C1                Block $C1 (Fonts & CLUTs)
+                    sta       >MMU_SLOT_1
 
-                    clr       >DMA_SZ_1D_H
-                    lda       #$04                1024 bytes ($000400)
-                    sta       >DMA_SZ_1D_M
-                    clr       >DMA_SZ_1D_L
+* CLUT 0 is at offset $1000 in Block $C1 -> $2000 + $1000 = $3000
+                    ldx       #$3000
+                    lbsr      InitClutDirect
 
-                    lda       #DMA_CTRL_Start_Trf+DMA_CTRL_Enable
-                    sta       >DMA_CTRL
-
-dma_wc              lda       >DMA_STATUS
-                    bita      #DMA_STATUS_TRF_IP
-                    bne       dma_wc
+* Restore original block in Slot 1 and MMU_MEM_CTRL
+                    puls      b
+                    stb       >MMU_SLOT_1
+                    puls      a
+                    sta       >MMU_MEM_CTRL
+                    andcc     #^IntMasks
 
 * ====================================================================
 * Step 3: Assign CLUT 0 to BM0 and place BM0 on Layer 0
@@ -177,6 +206,7 @@ dma_wc              lda       >DMA_STATUS
                     lda       #24                 color index 24 (deep slate blue)
                     sta       >DMA_DATA_WRITE
 
+                    clr       >DMA_SZ_Y_H         clear live 2D register before 1D transfer
                     lda       #$01                size = $012C00 (76,800 bytes)
                     sta       >DMA_SZ_1D_H
                     lda       #$2C
@@ -247,13 +277,25 @@ dma_w1              lda       >DMA_STATUS
                     std       <frames_left
 
 AnimLoop            lda       <abort_flag
-                    bne       CleanExit
+                    lbne      CleanExit
 
 * Poll stdin for any keypress
                     clra                          path 0 (stdin)
                     ldb       #SS.Ready
                     os9       I$GetStt
-                    bcc       CleanExit           key pressed!
+                    bcs       no_key
+                    clra                          path 0
+                    leax      <temp_buf,u
+                    ldy       #1
+                    os9       I$Read
+                    bcs       no_key
+                    lda       ,x
+                    cmpa      #$0D                CR?
+                    beq       no_key              ignore leftover enter
+                    cmpa      #$0A                LF?
+                    beq       no_key              ignore leftover linefeed
+                    lbra      CleanExit           any key exits!
+no_key
 
 * Erase old box at (box_x, box_y): 40x40 with background color 24
                     ldx       <box_x
@@ -302,7 +344,7 @@ draw_box            ldx       <box_x
                     ldd       <frames_left
                     subd      #1
                     std       <frames_left
-                    bne       AnimLoop
+                    lbne      AnimLoop
 
 * ====================================================================
 * Clean Exit: Restore Text Mode, Flush Keys, and Free Screen RAM
@@ -324,6 +366,23 @@ DoneFlush
 * Clear text screen and restore pure text mode
                     leax      msg_clr,pcr
                     lbsr      PrintStr
+
+* Restore terminal options
+                    leax      <popts,u
+                    clra                          path 0
+                    ldb       #SS.Opt
+                    os9       I$GetStt
+                    bcs       restoredone@
+                    lda       <saved_eko
+                    sta       4,x
+                    lda       <saved_int
+                    sta       16,x
+                    lda       <saved_qut
+                    sta       17,x
+                    clra                          path 0
+                    ldb       #SS.Opt
+                    os9       I$SetStt
+restoredone@
 
                     ldx       #FX_TXT
                     ldy       #FT_OMIT
@@ -443,11 +502,11 @@ CalcPixelPhys       pshs      x,y,u
 cpp_done            puls      x,y,u,pc
 
 * --------------------------------------------------------------------
-* InitClutBuf: Build 256-color palette in clut_buf
-* Entry: 4 bytes per color: [Blue, Green, Red, 0]
+* InitClutDirect: Build 256-color palette directly in CLUT 0
+* Entry: X = pointer to CLUT 0 ($1000 in mapped Block $C1)
+* Format: 4 bytes per color: [Blue, Green, Red, 0]
 * --------------------------------------------------------------------
-InitClutBuf         pshs      x,y
-                    leax      clut_buf,u
+InitClutDirect      pshs      x,y
                     clrb                          B = index (0..255)
 ic_lp               stb       ,x                  Blue = index
                     pshs      b
@@ -463,8 +522,9 @@ ic_lp               stb       ,x                  Blue = index
                     bne       ic_lp
 
 * Explicit overrides for vibrant demo colors:
+                    ldx       ,s                  restore CLUT 0 base pointer
 * Color 24 (Background): Deep Slate Blue (B=80, G=30, R=20)
-                    leax      (24*4)+clut_buf,u
+                    leax      (24*4),x
                     lda       #80
                     sta       ,x
                     lda       #30
@@ -473,7 +533,8 @@ ic_lp               stb       ,x                  Blue = index
                     sta       2,x
 
 * Color 45 (Window 1): Cyan (B=240, G=220, R=0)
-                    leax      (45*4)+clut_buf,u
+                    ldx       ,s
+                    leax      (45*4),x
                     lda       #240
                     sta       ,x
                     lda       #220
@@ -481,7 +542,8 @@ ic_lp               stb       ,x                  Blue = index
                     clr       2,x
 
 * Color 95 (Window 2): Bright Green (B=50, G=240, R=40)
-                    leax      (95*4)+clut_buf,u
+                    ldx       ,s
+                    leax      (95*4),x
                     lda       #50
                     sta       ,x
                     lda       #240
@@ -490,7 +552,8 @@ ic_lp               stb       ,x                  Blue = index
                     sta       2,x
 
 * Color 145 (Window 3): Gold/Yellow (B=20, G=215, R=255)
-                    leax      (145*4)+clut_buf,u
+                    ldx       ,s
+                    leax      (145*4),x
                     lda       #20
                     sta       ,x
                     lda       #215
@@ -499,7 +562,8 @@ ic_lp               stb       ,x                  Blue = index
                     sta       2,x
 
 * Color 175 (Window 4): Orange (B=0, G=128, R=255)
-                    leax      (175*4)+clut_buf,u
+                    ldx       ,s
+                    leax      (175*4),x
                     clr       ,x
                     lda       #128
                     sta       1,x
@@ -507,7 +571,8 @@ ic_lp               stb       ,x                  Blue = index
                     sta       2,x
 
 * Color 205 (Box / Window 5): Vivid Red (B=30, G=30, R=250)
-                    leax      (205*4)+clut_buf,u
+                    ldx       ,s
+                    leax      (205*4),x
                     lda       #30
                     sta       ,x
                     sta       1,x
@@ -515,7 +580,8 @@ ic_lp               stb       ,x                  Blue = index
                     sta       2,x
 
 * Color 235 (Window 6): Magenta (B=220, G=30, R=240)
-                    leax      (235*4)+clut_buf,u
+                    ldx       ,s
+                    leax      (235*4),x
                     lda       #220
                     sta       ,x
                     lda       #30
@@ -524,66 +590,6 @@ ic_lp               stb       ,x                  Blue = index
                     sta       2,x
 
                     puls      x,y,pc
-
-* --------------------------------------------------------------------
-* GetPhysAddr: Convert logical address in X to 24-bit physical address
-* Returns: A = Phys[23:16], B = Phys[15:8], temp_buf = Phys[7:0]
-* --------------------------------------------------------------------
-GetPhysAddr         pshs      x,y,cc
-                    orcc      #IntMasks
-                    lda       >MMU_MEM_CTRL
-                    sta       <scratch_mmu
-                    tfr       a,b
-                    andb      #$03
-                    lslb
-                    lslb
-                    lslb
-                    lslb
-                    anda      #$CF
-                    pshs      b
-                    ora       ,s+
-                    sta       >MMU_MEM_CTRL
-
-                    tfr       x,d
-                    pshs      b
-                    tfr       a,b
-                    lsrb
-                    lsrb
-                    lsrb
-                    lsrb
-                    lsrb
-                    andb      #$07
-                    ldy       #MMU_SLOT_0
-                    ldb       b,y
-
-                    pshs      a,b
-                    lda       <scratch_mmu
-                    sta       >MMU_MEM_CTRL
-                    puls      a,b
-
-                    pshs      a
-                    tfr       b,a
-                    lsra
-                    lsra
-                    lsra
-                    pshs      a
-
-                    lslb
-                    lslb
-                    lslb
-                    lslb
-                    lslb
-                    lda       1,s
-                    anda      #$1F
-                    pshs      a
-                    orb       ,s+
-
-                    lda       2,s
-                    sta       <temp_buf
-
-                    puls      a
-                    leas      2,s
-                    puls      x,y,cc,pc
 
 * --------------------------------------------------------------------
 * Signal Handler
@@ -620,13 +626,13 @@ msg_header          fcb       $0C                 Clear Screen
                     fcb       C$CR,$0A
                     fcc       "================================================================================"
                     fcb       C$CR,$0A
-                    fcc       "  * 1D Linear DMA Fill : Instantly cleared 76.8 KB VRAM canvas ($180000)"
+                    fcc       "  * 1D Linear DMA Fill : Instantly cleared 76.8 KB bitmap canvas"
                     fcb       C$CR,$0A
                     fcc       "  * 2D Stride DMA Fill : 5 Cascading graphic windows rendered with stride 320"
                     fcb       C$CR,$0A
                     fcc       "  * 2D Real-Time Blit  : Smooth 40x40 hardware bouncing box @ 60 fps"
                     fcb       C$CR,$0A
-                    fcc       "  * Text Overlay Mode  : NitrOS-9 console text floating directly over VRAM"
+                    fcc       "  * Text Overlay Mode  : NitrOS-9 console text floating directly over graphics"
                     fcb       C$CR,$0A
                     fcb       C$CR,$0A
                     fcc       "  -> Press ESC, Space, or any key to exit (or auto-exits in 15 seconds)..."
