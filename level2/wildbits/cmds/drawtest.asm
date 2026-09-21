@@ -55,10 +55,18 @@ start
 		    stx	      <pxlblk0
 		    stx	      <bmblock0
 
+*                   **** determine screen path (default to 0, use 1 if 0 not screen)
+                    clr       <currPath
+                    lda       #0
+                    ldb       #SS.ScTyp
+                    os9       I$GetStt
+                    bcc       @pathok
+                    inc       <currPath
+@pathok
 *                   **** get a new bitmap 0
                     ldy       #$0                 bitmap #
                     ldx       #$0                 screentype = 320x240 (1=320x200)
-                    lda       #$0                 path #
+                    lda       <currPath           path #
                     ldb       #SS.AScrn           assign and create bitmap
                     os9       I$SetStt
                     bcc       storeblk            no error, store block#
@@ -71,17 +79,16 @@ setBMClut
 *                   **** assign clut0 to bm0
                     ldx       #0                  clut #
                     ldy       #0                  bitmap #
-                    lda       #0                  path #
+                    lda       <currPath           path #
                     ldb       #SS.Palet           assign clut # to bitmap #
                     os9       I$SetStt
-		    leax      clut0,pcr
 		    lbsr      clutload
 		    lbsr      clutcopy
 setlayer
 *                   **** assign bm0 to layer0               
                     ldx       #0                  layer #
                     ldy       #0                  bitmap #
-                    lda       #0                  path # 
+                    lda       <currPath           path # 
                     ldb       #SS.PScrn           position bitmap # on layer #
                     os9       I$SetStt
 
@@ -91,7 +98,7 @@ main
 *                    **** turn on graphics
                     ldx       #FX_BM+FX_GRF       turn on bitmaps and graphics
                     ldy       #FT_OMIT            don't change $FFC1
-                    lda       #$00                path #
+                    lda       <currPath           path #
                     ldb       #SS.DScrn           display screen with new settings 
                     os9       I$SetStt            
                     lbcs      error                 
@@ -114,9 +121,13 @@ pollmouse	    ldb	      #SS.Mouse
 
 
 *                   **** turn off graphics
-exit                ldx       #FX_TXT             turn on text, all else off
+exit                tst       <pxlblk
+                    beq       @nomap
+                    lbsr      fclrblk
+                    clr       <pxlblk
+@nomap              ldx       #FX_TXT             turn on text, all else off
                     ldy       #FT_OMIT            don't change $FFC1
-                    lda       #$00                path #
+                    lda       <currPath           path #
                     ldb       #SS.DScrn           display screen with new settings 
                     os9       I$SetStt            
                     lbcs      error
@@ -126,21 +137,24 @@ exit                ldx       #FX_TXT             turn on text, all else off
 
 *                   **** deallocate bitmap memory
                     ldy       #$0                 bitmap 0
-                    lda       #$0                 path #
+                    lda       <currPath           path #
                     ldb       #SS.FScrn           free screen ram
                     os9       I$SetStt
-                    lbcs       error
+                    lbcs      error
                     clrb
 
 error               os9       F$Exit
 
-clut0               fcs       /xtclut/
-
-
+clutmod             fcs       /xtclut/
+clutpath            fcc       "/dd/cmds/xtclut"
                     fcb       $0D
 
 
-clearbitmap         lda	      #10	          loop through 10 blocks
+clearbitmap         tst       <pxlblk
+                    beq       @nomap
+                    lbsr      fclrblk
+                    clr       <pxlblk
+@nomap              lda	      #10	          loop through 10 blocks
                     ldx	      <bmblock0		  block#
 		    pshs      u		          preserve u
 clrloop@            ldb       #1                  map 1 block
@@ -182,55 +196,104 @@ FGETC               pshs      a,x,y
 drawpixel	    tfr	      x,d
 		    lsra
 		    rorb
-		    tfr	      d,x
+		    cmpd      #318
+		    bls       @xok
+		    ldd       #318
+@xok		    pshs      d                   ; 2,s = base X
 		    tfr	      y,d
 		    lsra
 		    rorb
-		    tfr	      d,y
-		    lda	      #10
+		    cmpd      #238
+		    bls       @yok
+		    ldd       #238
+@yok		    pshs      d                   ; 0,s = base Y
+
+		    ; Pixel (X, Y)
+		    ldx       2,s
+		    ldb       1,s
+		    lda       #10
 		    lbsr      writepixel
+
+		    ; Pixel (X+1, Y)
+		    ldx       2,s
+		    leax      1,x
+		    ldb       1,s
+		    lda       #10
+		    lbsr      writepixel
+
+		    ; Pixel (X, Y+1)
+		    ldx       2,s
+		    ldb       1,s
+		    incb
+		    lda       #10
+		    lbsr      writepixel
+
+		    ; Pixel (X+1, Y+1)
+		    ldx       2,s
+		    leax      1,x
+		    ldb       1,s
+		    incb
+		    lda       #10
+		    lbsr      writepixel
+
+		    leas      4,s
 		    rts
 		    
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; clut Load
-; extry:  x is address of file path/name
-; Loads CLUT from file or link
-clutload
-*                   **** try to link clut data module
-*                   **** if link fails, then load the module from default chx
-                    pshs      a,b,x,y,u
-                    lda       #0                  F$Load a=langauge, 0=any
-                    os9       F$Link              try linking module
-                    beq       cont@               link CLUT if no error, if error, try load
-                    os9       F$Load              load and set Y=entry point of module
-                    lbcs      err@
+; Loads CLUT from link, file, or fallback
+clutload            pshs      a,b,x,y,u
+                    lda       #0                  F$Load a=language, 0=any
+                    leax      clutmod,pcr         try linking module
+                    os9       F$Link
+                    bcc       cont@
+                    lda       #0
+                    leax      clutpath,pcr        try loading /dd/cmds/xtclut
+                    os9       F$Load
+                    bcc       cont@
+                    lda       #0
+                    leax      clutmod,pcr         try loading xtclut from exec dir
+                    os9       F$Load
+                    bcc       cont@
+*                   **** All loads failed; use built-in fallback palette
+                    leay      tmpclut,u
+                    ldx       #1024
+@clr                clr       ,y+
+                    leax      -1,x
+                    bne       @clr
+                    lda       #$FF                Green = $FF for entry 10 (offset 40: B=0, G=$FF, R=0, A=0)
+                    sta       tmpclut+41,u
+                    leay      tmpclut,u
+                    sty       <clutdata
+                    bra       done@
 cont@               stu       <clutheader
                     sty       <clutdata
-err@                puls      u,y,x,b,a
+done@               puls      u,y,x,b,a
+                    rts
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; clut copy
-; extry:  none
 ; copies clut from loaded module to clut#0
-clutcopy            pshs      a,b,y,u
-                    ldx       #0
+clutcopy            pshs      a,b,x,y,u
                     ldy       <clutdata
-                    lda       #$0                 path #
+                    beq       err@
+                    ldx       #0                  CLUT #0
+                    lda       <currPath           path #
                     ldb       #SS.DfPal           define palette clut#0 with data y
                     os9       I$SetStt
-err@                puls      u,y,a,b,pc
+err@                puls      a,b,x,y,u,pc
 
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; unlink clut
-; extry:  none
 ; unlink the current clut module from memory
 unlinkclut          pshs      u
                     ldu       <clutheader
+                    beq       @done
                     os9       F$Unlink
-                    puls      u,pc
+@done               puls      u,pc
 
 
 ;;; write pixel
