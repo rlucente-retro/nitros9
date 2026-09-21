@@ -35,7 +35,7 @@ currBlk             rmb       2         current mapped in block, (need to read i
 blkCnt              rmb       1         Counter for block loop
 clutheader          rmb       2
 clutdata            rmb       2
-iter_1              rmb       1
+currColor           rmb       1
 tmpb                rmb       1
 tmpg                rmb       1
 tmpr                rmb       1
@@ -54,6 +54,8 @@ start
                     stx       <clutdata
 		    stx	      <pxlblk0
 		    stx	      <bmblock0
+                    lda       #10                 default color = 10 (bright green)
+                    sta       <currColor
 
 *                   **** determine screen path (default to 0, use 1 if 0 not screen)
                     clr       <currPath
@@ -104,18 +106,53 @@ main
                     lbcs      error                 
 
 pollkeyboard        lbsr      INKEY
-                    cmpa      #113
+                    tsta
+                    beq       pollmouse
+                    cmpa      #113                'q'
                     beq       exit
-		    cmpa      #99
-		    beq	      clearsub
-		    bra	      pollmouse
+                    cmpa      #'Q'
+                    beq       exit
+                    cmpa      #$1B                ESC
+                    beq       exit
+                    cmpa      #99                 'c'
+                    beq       clearsub
+                    cmpa      #'C'
+                    beq       clearsub
+                    cmpa      #'+'
+                    beq       nextcol@
+                    cmpa      #'='
+                    beq       nextcol@
+                    cmpa      #'-'
+                    beq       prevcol@
+                    cmpa      #'_'
+                    beq       prevcol@
+                    cmpa      #'0'
+                    blo       pollmouse
+                    cmpa      #'9'
+                    bhi       pollmouse
+                    suba      #'0'
+                    leax      colortbl,pcr
+                    lda       a,x
+                    sta       <currColor
+                    bra       pollmouse
+nextcol@            inc       <currColor
+                    bra       pollmouse
+prevcol@            dec       <currColor
+                    bra       pollmouse
 clearsub	    lbsr      clearbitmap
 
 pollmouse	    ldb	      #SS.Mouse
 		    clra
 		    os9	      I$GetStt
-		    bita      #$01
-		    beq	      pollkeyboard
+		    bita      #$01                left button: draw with current color
+		    bne	      drawleft@
+		    bita      #$02                right button: erase (color 0)
+		    bne	      drawright@
+		    bra	      pollkeyboard
+drawleft@	    lda	      <currColor
+		    lbsr      drawpixel
+		    bra	      pollkeyboard
+drawright@	    clra                          color 0 (black / eraser)
 		    lbsr      drawpixel
 		    bra	      pollkeyboard
 
@@ -145,6 +182,7 @@ exit                tst       <pxlblk
 
 error               os9       F$Exit
 
+colortbl            fcb       0,9,10,11,12,13,14,15,7,3
 clutmod             fcs       /xtclut/
 clutpath            fcc       "/dd/cmds/xtclut"
                     fcb       $0D
@@ -193,39 +231,40 @@ FGETC               pshs      a,x,y
                     puls      a,x,y,pc
 
 
-drawpixel	    tfr	      x,d
+drawpixel	    pshs      a                   ; 0,s = color
+		    tfr	      x,d
 		    lsra
 		    rorb
 		    cmpd      #318
 		    bls       @xok
 		    ldd       #318
-@xok		    pshs      d                   ; 2,s = base X
+@xok		    pshs      d                   ; 0,1,s = base X; 2,s = color
 		    tfr	      y,d
 		    lsra
 		    rorb
 		    cmpd      #238
 		    bls       @yok
 		    ldd       #238
-@yok		    pshs      d                   ; 0,s = base Y
+@yok		    pshs      d                   ; 0,1,s = base Y; 2,3,s = base X; 4,s = color
 
 		    ; Pixel (X, Y)
 		    ldx       2,s
 		    ldb       1,s
-		    lda       #10
+		    lda       4,s
 		    lbsr      writepixel
 
 		    ; Pixel (X+1, Y)
 		    ldx       2,s
 		    leax      1,x
 		    ldb       1,s
-		    lda       #10
+		    lda       4,s
 		    lbsr      writepixel
 
 		    ; Pixel (X, Y+1)
 		    ldx       2,s
 		    ldb       1,s
 		    incb
-		    lda       #10
+		    lda       4,s
 		    lbsr      writepixel
 
 		    ; Pixel (X+1, Y+1)
@@ -233,10 +272,10 @@ drawpixel	    tfr	      x,d
 		    leax      1,x
 		    ldb       1,s
 		    incb
-		    lda       #10
+		    lda       4,s
 		    lbsr      writepixel
 
-		    leas      4,s
+		    leas      5,s
 		    rts
 		    
 
