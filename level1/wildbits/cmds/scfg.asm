@@ -22,6 +22,11 @@
 *   4      2026/01/15 Matt Massie
 * excluded font load Level-1 -dl
 * force Exit after parseopts scfg Level-1
+*
+*   5      2026/09/20  Antigravity
+* Fix BGPal RGB table: correct entries 2 (Red), 3 (Cyan), 4 (OS-9 Purple), and 10
+* (Wildbits BGP Deep Purple $4f,$00,$80). In SetupPalette, dynamically assign
+* both ChgForePal and ChgBackPal registers and RGB from the saved background color.
 
                ifp1
                use       defsfile
@@ -30,7 +35,7 @@
 tylg           set       Prgrm+Objct
 atrv           set       ReEnt+rev
 rev            set       $00
-edition        set       4
+edition        set       5
 
                mod       eom,name,tylg,atrv,start,size
 
@@ -1439,7 +1444,7 @@ NoParms@            rts
 Loadset             leax      ConfigDir,pcr               config directory file
                     lda       #READ.
                     os9       I$ChgDir
-                    lbcs      parsedone                   fail move on to signon
+                    lbcs      DoneExit2                   fail move on to signon
 getcurrfont2        lda       #READ.
                     leax      fspath2,pcr                  defaultsettings file
                     os9       I$Open
@@ -1451,7 +1456,7 @@ readfile            sta       pathnum,u                    save path
                     os9       I$Read
                     sty       curfntsz,u
 					lda       pathnum,u
-					lbcs      parsedone        SignOn
+					lbcs      DoneExit                    SignOn
                     os9       I$Close 
                     bra       SetupPalette
 nofile@             ldy       #0                            set name length to 0
@@ -1480,17 +1485,20 @@ paletteloop@        lda       ,x+
                     sta       2,y                           set size
                     lda       #7                            def Font
                     sta       12,y
-                    lda       #$A                           def fg
-                    sta       19,y
-                    sta       26,y
+                    lda       1,x                           get bg
+                    sta       19,y                          palette reg in ChgForePal
+                    sta       26,y                          palette reg in ChgBackPal
                     lbsr      rgblookupbg                   rgb lookup for BG color set
                     leay      palettebuf,u                  point to palette buffer and update
                     lda       red,u
-                    sta       27,y
+                    sta       20,y                          set red in ChgForePal
+                    sta       27,y                          set red in ChgBackPal
                     lda       green,u
-                    sta       28,y
+                    sta       21,y                          set green in ChgForePal
+                    sta       28,y                          set green in ChgBackPal
                     lda       blue,u
-                    sta       29,y                    
+                    sta       22,y                          set blue in ChgForePal
+                    sta       29,y                          set blue in ChgBackPal                    
                     leax      palettebuf,u
                     ldy       #31
 doit@               lda       #1
@@ -1512,12 +1520,12 @@ fgloop@             lda       ,x+
                     os9       I$Write
                     puls      x,y
 SetupFont           ldd       curfntsz,u                    no font skip
-                    beq       parsedone
+                    lbeq      DoneExit
                     ifgt      Level-1
                     leax      sysfont,pcr                   point font directory
                     lda       #READ.
                     os9       I$ChgDir
-                    bcs       parsedone
+                    lbcs      DoneExit
                     pshs      a,x,y,u
                     leax      curfnt,u                      font to load
                     leax      3,x                           skip colors and screen size - point to font name
@@ -1536,7 +1544,7 @@ DoneExit            lbsr      movecursor2
                     lbsr      SignOn 
 noban               clrb          
                     os9       F$Exit
-parsedone           rts
+parsedone           lbra      DoneExit
 DoneExit2           lbsr      setupPalette2
                     lbsr	  cursoron		                turn cursor on 
                     lda       dobanner,u
@@ -1777,15 +1785,15 @@ screenchars    fcb	 $02,$28,$34
 
 BGPal               fcb $00,$00,$00,$00
                     fcb $ff,$ff,$ff,$00
-                    fcb $00,$80,$00,$00
-                    fcb $80,$80,$00,$00
-                    fcb $00,$00,$80,$00
+                    fcb $88,$00,$00,$00
+                    fcb $aa,$ff,$ee,$00
+                    fcb $cc,$4c,$cc,$00
                     fcb $00,$cc,$55,$00
                     fcb $00,$00,$aa,$00
                     fcb $dd,$dd,$77,$00
                     fcb $dd,$88,$55,$00
                     fcb $66,$44,$00,$00
-                    fcb $ff,$77,$77,$00
+                    fcb $4f,$00,$80,$00
                     fcb $33,$33,$33,$00
                     fcb $77,$77,$77,$00
                     fcb $aa,$ff,$66,$00
@@ -2170,11 +2178,11 @@ NitrOS9L            equ *-NitrOS9
 * Filename
 FileName   FCC       "/dd/sys/defaultsettings"
                     FCB       $0D            CR terminator
-ConfigDir           fcc       "/DD/SYS"
+ConfigDir           fcc       "/dd/sys"
                     fcb       C$CR
 fspath2             fcc       "defaultsettings"
                     fcb       C$CR
-sysfont             fcc       "/DD/SYS/FONTS"
+sysfont             fcc       "/dd/sys/fonts"
                     fcb       C$CR
 fontfgcolor         fcb $02,$20,$2a,$1b,$32,$01,$0C
 
