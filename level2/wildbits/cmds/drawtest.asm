@@ -42,8 +42,6 @@ saved_qut           rmb       1         saved PD.QUT
 popts               rmb       32        terminal option buffer (SS.Opt)
 tmpb                rmb       1
 tmpg                rmb       1
-tmpr                rmb       1
-tmpclut             rmb       1024      
                     rmb       250       stack space
 size                equ       .
 
@@ -341,8 +339,8 @@ drawpixel	    pshs      a                   ; 0,s = color
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; clut Load
-; Loads CLUT from link, file, or fallback
-clutload            pshs      a,b,x,y,u
+; Loads CLUT from link, file, or built-in raw CLUT
+clutload            pshs      u
                     lda       #0                  F$Load a=language, 0=any
                     leax      clutmod,pcr         try linking module
                     os9       F$Link
@@ -355,58 +353,14 @@ clutload            pshs      a,b,x,y,u
                     leax      clutmod,pcr         try loading xtclut from exec dir
                     os9       F$Load
                     lbcc      cont@
-*                   **** All loads failed; use built-in fallback palette
-                    leay      tmpclut,u
-                    ldx       #1024
-@clr                clr       ,y+
-                    leax      -1,x
-                    bne       @clr
-*                   **** Set up fallback colors for our palette entries (BGRA order)
-*                   Entry 15: White ($FF,$FF,$FF,0) -> offset 60
-                    ldd       #$FFFF
-                    std       tmpclut+60,u
-                    sta       tmpclut+62,u
-*                   Entry 9: Red (B=0, G=0, R=$FF, A=0) -> offset 36
-                    sta       tmpclut+38,u
-*                   Entry 10: Green (B=0, G=$FF, R=0, A=0) -> offset 40
-                    sta       tmpclut+41,u
-*                   Entry 11: Yellow (B=0, G=$FF, R=$FF, A=0) -> offset 44
-                    std       tmpclut+45,u
-*                   Entry 14: Cyan (B=$FF, G=$FF, R=0, A=0) -> offset 56
-                    std       tmpclut+56,u
-*                   Entry 13: Magenta (B=$FF, G=0, R=$FF, A=0) -> offset 52
-                    sta       tmpclut+52,u
-                    sta       tmpclut+54,u
-*                   Entry 214: Orange (B=0, G=$AF, R=$FF, A=0) -> offset 856
-                    lda       #$AF
-                    sta       tmpclut+857,u
-                    lda       #$FF
-                    sta       tmpclut+858,u
-*                   Entry 75: Sky Blue (B=$FF, G=$AF, R=$5F, A=0) -> offset 300
-                    lda       #$FF
-                    sta       tmpclut+300,u
-                    lda       #$AF
-                    sta       tmpclut+301,u
-                    lda       #$5F
-                    sta       tmpclut+302,u
-*                   Entry 207: Pink (B=$FF, G=$5F, R=$FF, A=0) -> offset 828
-                    lda       #$FF
-                    sta       tmpclut+828,u
-                    lda       #$5F
-                    sta       tmpclut+829,u
-                    lda       #$FF
-                    sta       tmpclut+830,u
-*                   Entry 82: Lime (B=0, G=$FF, R=$5F, A=0) -> offset 328
-                    lda       #$FF
-                    sta       tmpclut+329,u
-                    lda       #$5F
-                    sta       tmpclut+330,u
-                    leay      tmpclut,u
+*                   **** All loads failed; use built-in raw CLUT
+                    puls      u                   restore caller's original U
+                    leay      rawclut,pcr         point to built-in raw CLUT
                     sty       <clutdata
-                    bra       done@
-cont@               stu       <clutheader
-                    sty       <clutdata
-done@               puls      u,y,x,b,a
+                    rts
+cont@               stu       <clutheader         save module header to unlink on exit
+                    sty       <clutdata           save module data pointer
+                    puls      u                   restore caller's original U
                     rts
 
 
@@ -431,6 +385,72 @@ unlinkclut          pshs      u
                     beq       @done
                     os9       F$Unlink
 @done               puls      u,pc
+
+rawclut
+                    fcb $00,$00,$00,$00,$00,$00,$80,$00,$00,$80,$00,$00,$00,$80,$80,$00
+                    fcb $80,$00,$00,$00,$80,$00,$80,$00,$80,$80,$00,$00,$c0,$c0,$c0,$00
+                    fcb $80,$80,$80,$00,$00,$00,$ff,$00,$00,$ff,$00,$00,$00,$ff,$ff,$00
+                    fcb $ff,$00,$00,$00,$ff,$00,$ff,$00,$ff,$ff,$00,$00,$ff,$ff,$ff,$00
+                    fcb $00,$00,$00,$00,$5f,$00,$00,$00,$87,$00,$00,$00,$af,$00,$00,$00
+                    fcb $d7,$00,$00,$00,$ff,$00,$00,$00,$00,$5f,$00,$00,$5f,$5f,$00,$00
+                    fcb $87,$5f,$00,$00,$af,$5f,$00,$00,$d7,$5f,$00,$00,$ff,$5f,$00,$00
+                    fcb $00,$87,$00,$00,$5f,$87,$00,$00,$87,$87,$00,$00,$af,$87,$00,$00
+                    fcb $d7,$87,$00,$00,$ff,$87,$00,$00,$00,$af,$00,$00,$5f,$af,$00,$00
+                    fcb $87,$af,$00,$00,$af,$af,$00,$00,$d7,$af,$00,$00,$ff,$af,$00,$00
+                    fcb $00,$d7,$00,$00,$5f,$d7,$00,$00,$87,$d7,$00,$00,$af,$d7,$00,$00
+                    fcb $d7,$d7,$00,$00,$ff,$d7,$00,$00,$00,$ff,$00,$00,$5f,$ff,$00,$00
+                    fcb $87,$ff,$00,$00,$af,$ff,$00,$00,$d7,$ff,$00,$00,$ff,$ff,$00,$00
+                    fcb $00,$00,$5f,$00,$5f,$00,$5f,$00,$87,$00,$5f,$00,$af,$00,$5f,$00
+                    fcb $d7,$00,$5f,$00,$ff,$00,$5f,$00,$00,$5f,$5f,$00,$5f,$5f,$5f,$00
+                    fcb $87,$5f,$5f,$00,$af,$5f,$5f,$00,$d7,$5f,$5f,$00,$ff,$5f,$5f,$00
+                    fcb $00,$87,$5f,$00,$5f,$87,$5f,$00,$87,$87,$5f,$00,$af,$87,$5f,$00
+                    fcb $d7,$87,$5f,$00,$ff,$87,$5f,$00,$00,$af,$5f,$00,$5f,$af,$5f,$00
+                    fcb $87,$af,$5f,$00,$af,$af,$5f,$00,$d7,$af,$5f,$00,$ff,$af,$5f,$00
+                    fcb $00,$d7,$5f,$00,$5f,$d7,$5f,$00,$87,$d7,$5f,$00,$af,$d7,$5f,$00
+                    fcb $d7,$d7,$5f,$00,$ff,$d7,$5f,$00,$00,$ff,$5f,$00,$5f,$ff,$5f,$00
+                    fcb $87,$ff,$5f,$00,$af,$ff,$5f,$00,$d7,$ff,$5f,$00,$ff,$ff,$5f,$00
+                    fcb $00,$00,$87,$00,$5f,$00,$87,$00,$87,$00,$87,$00,$af,$00,$87,$00
+                    fcb $d7,$00,$87,$00,$ff,$00,$87,$00,$00,$5f,$87,$00,$5f,$5f,$87,$00
+                    fcb $87,$5f,$87,$00,$af,$5f,$87,$00,$d7,$5f,$87,$00,$ff,$5f,$87,$00
+                    fcb $00,$87,$87,$00,$5f,$87,$87,$00,$87,$87,$87,$00,$af,$87,$87,$00
+                    fcb $d7,$87,$87,$00,$ff,$87,$87,$00,$00,$af,$87,$00,$5f,$af,$87,$00
+                    fcb $87,$af,$87,$00,$af,$af,$87,$00,$d7,$af,$87,$00,$ff,$af,$87,$00
+                    fcb $00,$d7,$87,$00,$5f,$d7,$87,$00,$87,$d7,$87,$00,$af,$d7,$87,$00
+                    fcb $d7,$d7,$87,$00,$ff,$d7,$87,$00,$00,$ff,$87,$00,$5f,$ff,$87,$00
+                    fcb $87,$ff,$87,$00,$af,$ff,$87,$00,$d7,$ff,$87,$00,$ff,$ff,$87,$00
+                    fcb $00,$00,$af,$00,$5f,$00,$af,$00,$87,$00,$af,$00,$af,$00,$af,$00
+                    fcb $d7,$00,$af,$00,$ff,$00,$af,$00,$00,$5f,$af,$00,$5f,$5f,$af,$00
+                    fcb $87,$5f,$af,$00,$af,$5f,$af,$00,$d7,$5f,$af,$00,$ff,$5f,$af,$00
+                    fcb $00,$87,$af,$00,$5f,$87,$af,$00,$87,$87,$af,$00,$af,$87,$af,$00
+                    fcb $d7,$87,$af,$00,$ff,$87,$af,$00,$00,$af,$af,$00,$5f,$af,$af,$00
+                    fcb $87,$af,$af,$00,$af,$af,$af,$00,$d7,$af,$af,$00,$ff,$af,$af,$00
+                    fcb $00,$d7,$af,$00,$5f,$d7,$af,$00,$87,$d7,$af,$00,$af,$d7,$af,$00
+                    fcb $d7,$d7,$af,$00,$ff,$d7,$af,$00,$00,$ff,$af,$00,$5f,$ff,$af,$00
+                    fcb $87,$ff,$af,$00,$af,$ff,$af,$00,$d7,$ff,$af,$00,$ff,$ff,$af,$00
+                    fcb $00,$00,$d7,$00,$5f,$00,$d7,$00,$87,$00,$d7,$00,$af,$00,$d7,$00
+                    fcb $d7,$00,$d7,$00,$ff,$00,$d7,$00,$00,$5f,$d7,$00,$5f,$5f,$d7,$00
+                    fcb $87,$5f,$d7,$00,$af,$5f,$d7,$00,$d7,$5f,$d7,$00,$ff,$5f,$d7,$00
+                    fcb $00,$87,$d7,$00,$5f,$87,$d7,$00,$87,$87,$d7,$00,$af,$87,$d7,$00
+                    fcb $d7,$87,$d7,$00,$ff,$87,$d7,$00,$00,$af,$d7,$00,$5f,$af,$d7,$00
+                    fcb $87,$af,$d7,$00,$af,$af,$d7,$00,$d7,$af,$d7,$00,$ff,$af,$d7,$00
+                    fcb $00,$d7,$d7,$00,$5f,$d7,$d7,$00,$87,$d7,$d7,$00,$af,$d7,$d7,$00
+                    fcb $d7,$d7,$d7,$00,$ff,$d7,$d7,$00,$00,$ff,$d7,$00,$5f,$ff,$d7,$00
+                    fcb $87,$ff,$d7,$00,$af,$ff,$d7,$00,$d7,$ff,$d7,$00,$ff,$ff,$d7,$00
+                    fcb $00,$00,$ff,$00,$5f,$00,$ff,$00,$87,$00,$ff,$00,$af,$00,$ff,$00
+                    fcb $d7,$00,$ff,$00,$ff,$00,$ff,$00,$00,$5f,$ff,$00,$5f,$5f,$ff,$00
+                    fcb $87,$5f,$ff,$00,$af,$5f,$ff,$00,$d7,$5f,$ff,$00,$ff,$5f,$ff,$00
+                    fcb $00,$87,$ff,$00,$5f,$87,$ff,$00,$87,$87,$ff,$00,$af,$87,$ff,$00
+                    fcb $d7,$87,$ff,$00,$ff,$87,$ff,$00,$00,$af,$ff,$00,$5f,$af,$ff,$00
+                    fcb $87,$af,$ff,$00,$af,$af,$ff,$00,$d7,$af,$ff,$00,$ff,$af,$ff,$00
+                    fcb $00,$d7,$ff,$00,$5f,$d7,$ff,$00,$87,$d7,$ff,$00,$af,$d7,$ff,$00
+                    fcb $d7,$d7,$ff,$00,$ff,$d7,$ff,$00,$00,$ff,$ff,$00,$5f,$ff,$ff,$00
+                    fcb $87,$ff,$ff,$00,$af,$ff,$ff,$00,$d7,$ff,$ff,$00,$ff,$ff,$ff,$00
+                    fcb $08,$08,$08,$00,$12,$12,$12,$00,$1c,$1c,$1c,$00,$26,$26,$26,$00
+                    fcb $30,$30,$30,$00,$3a,$3a,$3a,$00,$44,$44,$44,$00,$4e,$4e,$4e,$00
+                    fcb $58,$58,$58,$00,$62,$62,$62,$00,$6c,$6c,$6c,$00,$76,$76,$76,$00
+                    fcb $80,$80,$80,$00,$8a,$8a,$8a,$00,$94,$94,$94,$00,$9e,$9e,$9e,$00
+                    fcb $a8,$a8,$a8,$00,$b2,$b2,$b2,$00,$bc,$bc,$bc,$00,$c6,$c6,$c6,$00
+                    fcb $d0,$d0,$d0,$00,$da,$da,$da,$00,$e4,$e4,$e4,$00,$ee,$ee,$ee,$00
 
 
 ;;; write pixel
