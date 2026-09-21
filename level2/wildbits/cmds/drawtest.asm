@@ -36,6 +36,10 @@ blkCnt              rmb       1         Counter for block loop
 clutheader          rmb       2
 clutdata            rmb       2
 currColor           rmb       1
+saved_eko           rmb       1         saved PD.EKO
+saved_int           rmb       1         saved PD.INT
+saved_qut           rmb       1         saved PD.QUT
+popts               rmb       32        terminal option buffer (SS.Opt)
 tmpb                rmb       1
 tmpg                rmb       1
 tmpr                rmb       1
@@ -57,6 +61,10 @@ start
                     lda       #10                 default color = 10 (bright green)
                     sta       <currColor
 
+*                   **** install signal intercept handler
+                    leax      sighandler,pcr
+                    os9       F$Icpt
+
 *                   **** determine screen path (default to 0, use 1 if 0 not screen)
                     clr       <currPath
                     lda       #0
@@ -65,6 +73,25 @@ start
                     bcc       @pathok
                     inc       <currPath
 @pathok
+*                   **** save terminal options and set raw input (echo off, break off)
+                    leax      <popts,u
+                    lda       <currPath
+                    ldb       #SS.Opt
+                    os9       I$GetStt
+                    bcs       @optsdone
+                    lda       4,x                 save original echo
+                    sta       <saved_eko
+                    clr       4,x                 echo off
+                    lda       16,x                save original interrupt char (Ctrl-C)
+                    sta       <saved_int
+                    clr       16,x                interrupt char off (deliver as $03)
+                    lda       17,x                save original quit char (Ctrl-E / ESC)
+                    sta       <saved_qut
+                    clr       17,x                quit char off (deliver as $05)
+                    lda       <currPath
+                    ldb       #SS.Opt
+                    os9       I$SetStt
+@optsdone
 *                   **** get a new bitmap 0
                     ldy       #$0                 bitmap #
                     ldx       #$0                 screentype = 320x240 (1=320x200)
@@ -108,16 +135,24 @@ main
 pollkeyboard        lbsr      INKEY
                     tsta
                     beq       pollmouse
-                    cmpa      #113                'q'
+                    cmpa      #'q'                'q'
                     beq       exit
-                    cmpa      #'Q'
+                    cmpa      #'Q'                'Q'
                     beq       exit
-                    cmpa      #$1B                ESC
+                    cmpa      #$1B                ASCII ESC (27)
                     beq       exit
-                    cmpa      #99                 'c'
+                    cmpa      #$05                PS/2 ESC (scancode $76 mapped to $05 in keydrv)
+                    beq       exit
+                    cmpa      #$03                Ctrl-C ($03)
+                    beq       exit
+                    cmpa      #'c'                'c'
                     beq       clearsub
-                    cmpa      #'C'
+                    cmpa      #'C'                'C'
                     beq       clearsub
+                    cmpa      #'e'                'e' = eraser (color 0)
+                    beq       seteraser@
+                    cmpa      #'E'                'E' = eraser (color 0)
+                    beq       seteraser@
                     cmpa      #'+'
                     beq       nextcol@
                     cmpa      #'='
@@ -135,11 +170,14 @@ pollkeyboard        lbsr      INKEY
                     lda       a,x
                     sta       <currColor
                     bra       pollmouse
+seteraser@          clr       <currColor
+                    bra       pollmouse
 nextcol@            inc       <currColor
                     bra       pollmouse
 prevcol@            dec       <currColor
                     bra       pollmouse
 clearsub	    lbsr      clearbitmap
+                    bra       pollkeyboard
 
 pollmouse	    ldb	      #SS.Mouse
 		    clra
@@ -156,13 +194,32 @@ drawright@	    clra                          color 0 (black / eraser)
 		    lbsr      drawpixel
 		    bra	      pollkeyboard
 
+sighandler          lbra      exit
 
 *                   **** turn off graphics
 exit                tst       <pxlblk
                     beq       @nomap
                     lbsr      fclrblk
                     clr       <pxlblk
-@nomap              ldx       #FX_TXT             turn on text, all else off
+@nomap
+*                   **** restore terminal options
+                    leax      <popts,u
+                    lda       <currPath
+                    ldb       #SS.Opt
+                    os9       I$GetStt
+                    bcs       @restoredone
+                    lda       <saved_eko
+                    sta       4,x
+                    lda       <saved_int
+                    sta       16,x
+                    lda       <saved_qut
+                    sta       17,x
+                    lda       <currPath
+                    ldb       #SS.Opt
+                    os9       I$SetStt
+@restoredone
+*                   **** turn on text, all else off
+                    ldx       #FX_TXT             turn on text, all else off
                     ldy       #FT_OMIT            don't change $FFC1
                     lda       <currPath           path #
                     ldb       #SS.DScrn           display screen with new settings 
@@ -182,19 +239,19 @@ exit                tst       <pxlblk
 
 error               os9       F$Exit
 
-colortbl            fcb       0,9,10,11,12,13,14,15,7,3
+colortbl            fcb       15,9,10,11,14,13,214,75,207,82
 clutmod             fcs       /xtclut/
 clutpath            fcc       "/dd/cmds/xtclut"
                     fcb       $0D
 
 
-clearbitmap         tst       <pxlblk
+clearbitmap         pshs      a,b,x,y,u
+                    tst       <pxlblk
                     beq       @nomap
                     lbsr      fclrblk
                     clr       <pxlblk
 @nomap              lda	      #10	          loop through 10 blocks
                     ldx	      <bmblock0		  block#
-		    pshs      u		          preserve u
 clrloop@            ldb       #1                  map 1 block
                     os9       F$MapBlk            map the block
 		    pshs      u			  preserve start addr of block
@@ -205,14 +262,13 @@ loop@		    clr	      ,u+		  clear 8K
 		    puls      u			  puls start addr to clear block
 		    ldb	      #1
 		    os9	      F$ClrBlk	          clear block
-		    leax      1,x		  incrment block number 
+		    leax      1,x		  increment block number 
 		    deca      			  decrement block counter
-		    bne	      clrloop@
-		    puls      u
-		    rts
+		    bne       clrloop@
+		    puls      a,b,x,y,u,pc
 		    
 
-INKEY               clra                          std in
+INKEY               lda       <currPath           path #
                     ldb       #SS.Ready
                     os9       I$GetStt            see if key ready
                     bcc       getit
@@ -224,11 +280,15 @@ getit               lbsr      FGETC               go get the key
                     tsta
 exit@               rts
 
-FGETC               pshs      a,x,y
-                    ldy       #1                  number of char to print
-                    tfr       s,x                 point x at 1 char buffer
+FGETC               pshs      x,y
+                    leas      -1,s
+                    lda       <currPath
+                    ldy       #1
+                    tfr       s,x
                     os9       I$Read
-                    puls      a,x,y,pc
+                    lda       ,s
+                    leas      1,s
+                    puls      x,y,pc
 
 
 drawpixel	    pshs      a                   ; 0,s = color
@@ -286,23 +346,61 @@ clutload            pshs      a,b,x,y,u
                     lda       #0                  F$Load a=language, 0=any
                     leax      clutmod,pcr         try linking module
                     os9       F$Link
-                    bcc       cont@
+                    lbcc      cont@
                     lda       #0
                     leax      clutpath,pcr        try loading /dd/cmds/xtclut
                     os9       F$Load
-                    bcc       cont@
+                    lbcc      cont@
                     lda       #0
                     leax      clutmod,pcr         try loading xtclut from exec dir
                     os9       F$Load
-                    bcc       cont@
+                    lbcc      cont@
 *                   **** All loads failed; use built-in fallback palette
                     leay      tmpclut,u
                     ldx       #1024
 @clr                clr       ,y+
                     leax      -1,x
                     bne       @clr
-                    lda       #$FF                Green = $FF for entry 10 (offset 40: B=0, G=$FF, R=0, A=0)
+*                   **** Set up fallback colors for our palette entries (BGRA order)
+*                   Entry 15: White ($FF,$FF,$FF,0) -> offset 60
+                    ldd       #$FFFF
+                    std       tmpclut+60,u
+                    sta       tmpclut+62,u
+*                   Entry 9: Red (B=0, G=0, R=$FF, A=0) -> offset 36
+                    sta       tmpclut+38,u
+*                   Entry 10: Green (B=0, G=$FF, R=0, A=0) -> offset 40
                     sta       tmpclut+41,u
+*                   Entry 11: Yellow (B=0, G=$FF, R=$FF, A=0) -> offset 44
+                    std       tmpclut+45,u
+*                   Entry 14: Cyan (B=$FF, G=$FF, R=0, A=0) -> offset 56
+                    std       tmpclut+56,u
+*                   Entry 13: Magenta (B=$FF, G=0, R=$FF, A=0) -> offset 52
+                    sta       tmpclut+52,u
+                    sta       tmpclut+54,u
+*                   Entry 214: Orange (B=0, G=$AF, R=$FF, A=0) -> offset 856
+                    lda       #$AF
+                    sta       tmpclut+857,u
+                    lda       #$FF
+                    sta       tmpclut+858,u
+*                   Entry 75: Sky Blue (B=$FF, G=$AF, R=$5F, A=0) -> offset 300
+                    lda       #$FF
+                    sta       tmpclut+300,u
+                    lda       #$AF
+                    sta       tmpclut+301,u
+                    lda       #$5F
+                    sta       tmpclut+302,u
+*                   Entry 207: Pink (B=$FF, G=$5F, R=$FF, A=0) -> offset 828
+                    lda       #$FF
+                    sta       tmpclut+828,u
+                    lda       #$5F
+                    sta       tmpclut+829,u
+                    lda       #$FF
+                    sta       tmpclut+830,u
+*                   Entry 82: Lime (B=0, G=$FF, R=$5F, A=0) -> offset 328
+                    lda       #$FF
+                    sta       tmpclut+329,u
+                    lda       #$5F
+                    sta       tmpclut+330,u
                     leay      tmpclut,u
                     sty       <clutdata
                     bra       done@
