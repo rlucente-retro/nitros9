@@ -101,61 +101,68 @@ Test3               lbsr      PRINTS
                     lbsr      PRINTS
                     fcb       C$CR,0
 
-                    * Decode Bit 7: Gamma Correction
+                    * Decode Bit 7: Gamma Correction (Active-Low: 0=On, 1=Off)
                     lbsr      PRINTS
                     fcc       "         - Bit 7 [Gamma]: "
                     fcb       0
                     lda       dip_val,u
                     bita      #$80
-                    bne       gamma_on
+                    beq       gamma_on
                     lbsr      PRINTS
                     fcc       "Disabled (Off)"
                     fcb       C$CR,0
-                    bra       chk_turbo
+                    bra       chk_user
 gamma_on            lbsr      PRINTS
                     fcc       "Enabled (On)"
                     fcb       C$CR,0
 
-chk_turbo           * Decode Bit 6: Turbo Stretch Mode (~1.4x)
+chk_user            * Decode Bits 6..4: User DIP Switches (User 2, 1, 0)
+                    * Active-Low: 1=Off (Open), 0=On (Closed)
                     lbsr      PRINTS
-                    fcc       "         - Bit 6 [Turbo]: "
-                    fcb       0
-                    lda       dip_val,u
-                    bita      #$40
-                    bne       turbo_on
-                    lbsr      PRINTS
-                    fcc       "Standard 6.29 MHz (Off)"
-                    fcb       C$CR,0
-                    bra       chk_user
-turbo_on            lbsr      PRINTS
-                    fcc       "Turbo ~8.8 MHz (On)"
-                    fcb       C$CR,0
-
-chk_user            * Decode Bits 5..4: User DIP Switches
-                    lbsr      PRINTS
-                    fcc       "         - Bits 5:4 [User DIPs]: %"
+                    fcc       "         - Bits 6:4 [User DIPs]: %"
                     fcb       0
                     lda       dip_val,u
                     lsra
                     lsra
                     lsra
                     lsra
-                    anda      #$03
+                    anda      #$07
+                    eora      #$07                * Invert: %111 (all open) -> %000
                     adda      #'0
                     lbsr      PUTC
                     lbsr      PRINTS
                     fcb       C$CR,0
 
-                    * Decode Bits 3..0: Boot Mode
+                    * Decode Bits 3..1: Boot Mode
+                    * Active-Low: 1=Off (Open), 0=On (Closed)
                     lbsr      PRINTS
-                    fcc       "         - Bits 3:0 [Boot Mode]: $"
+                    fcc       "         - Bits 3:1 [Boot Mode]: $"
                     fcb       0
                     lda       dip_val,u
-                    anda      #$0F
+                    lsra
+                    anda      #$07
+                    eora      #$07                * Invert: %111 (all open) -> $0
                     lbsr      Nibble2Hex
                     lbsr      PRINTS
                     fcb       C$CR,0
-                    lbsr      PrintPass
+
+chk_turbo           * Decode Bit 0: Turbo Stretch Mode (~1.4x)
+                    * Active-Low: 0=Turbo ~8.8 MHz (On), 1=Standard 6.29 MHz (Off)
+                    lbsr      PRINTS
+                    fcc       "         - Bit 0 [Turbo]: "
+                    fcb       0
+                    lda       dip_val,u
+                    bita      #$01
+                    beq       turbo_on
+                    lbsr      PRINTS
+                    fcc       "Standard 6.29 MHz (Off)"
+                    fcb       C$CR,0
+                    bra       dip_done
+turbo_on            lbsr      PRINTS
+                    fcc       "Turbo ~8.8 MHz (On)"
+                    fcb       C$CR,0
+
+dip_done            lbsr      PrintPass
                     inc       pass_count,u
 
                     * ========================================================
