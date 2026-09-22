@@ -23,7 +23,7 @@ Level               set       2
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       5
+edition             set       6
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
@@ -478,32 +478,46 @@ ed_done             clr       >DMA_CTRL           clear Start_Trf for next trans
 * Input: X = col (0..319), Y = row (0..239)
 * Returns: A = Phys[23:16], B = Phys[15:8], temp_buf = Phys[7:0]
 * Formula: Offset = Y * 320 + X = Y * 256 + Y * 64 + X
+* Note: 320x240 canvas is 76,800 bytes ($012C00), which exceeds 64KB.
+* Uses full 24-bit arithmetic to prevent wrapping at row 205.
 * --------------------------------------------------------------------
 CalcPixelPhys       pshs      x,y,u
-                    tfr       x,u                 save X in U
-                    tfr       y,d                 B = Y low byte
-                    lda       #64
-                    mul                           D = Y * 64
-                    pshs      d                   save (Y * 64)
+* 1. Initialize Offset with X (col: 0..319)
+                    tfr       x,d                 A = X_hi (0 or 1), B = X_lo
+                    stb       <temp_buf           temp_buf = Phys[7:0] initial
+                    sta       ,-s                 stack: [Off_M] = X_hi
+                    clr       ,-s                 stack: [Off_H] = 0, [Off_M] = X_hi
 
+* 2. Add Y * 256 (middle byte += Y, carry to high byte)
+                    tfr       y,d                 B = Y low byte (0..239)
+                    addb      1,s                 B = Off_M + Y
+                    stb       1,s                 update Off_M
+                    bcc       cpp_y256_no_c
+                    inc       ,s                  propagate carry to Off_H
+cpp_y256_no_c
+
+* 3. Add Y * 64 (computed via 8x8 mul: max product = 239 * 64 = 15,296 = $3BC0)
                     tfr       y,d                 B = Y
-                    clra
-                    tfr       b,a                 D = Y * 256
-                    clrb
-                    addd      ,s++                D = Y * 320
-                    tfr       u,x                 X = original X
-                    leax      d,x                 X = Y * 320 + X
+                    lda       #64
+                    mul                           D = Y * 64 (A = prod_hi, B = prod_lo)
+                    addb      <temp_buf           add prod_lo to low byte
+                    stb       <temp_buf           Phys[7:0] finalized!
+                    bcc       cpp_add_hi
+                    inca                          propagate low carry into prod_hi
+cpp_add_hi          adda      1,s                 A = Off_M + prod_hi
+                    sta       1,s                 update Off_M
+                    bcc       cpp_off_done
+                    inc       ,s                  propagate carry to Off_H
+cpp_off_done
 
-* Add 16-bit offset in X to 24-bit base (bm_phys_h, bm_phys_m, bm_phys_l)
-                    tfr       x,d                 A = off_hi, B = off_lo
-                    stb       <temp_buf           temp_buf = Phys[7:0]
-
-                    adda      <bm_phys_m          A = bm_phys_m + off_hi
+* 4. Add 24-bit base address of Bitmap 0 (bm_phys_h, bm_phys_m, bm_phys_l=0)
+                    lda       1,s                 A = Off_M
+                    adda      <bm_phys_m          A = Off_M + bm_phys_m
                     tfr       a,b                 B = Phys[15:8]
-                    lda       <bm_phys_h          A = Phys[23:16]
-                    bcc       cpp_done
-                    inca                          propagate carry
-cpp_done            puls      x,y,u,pc
+                    lda       ,s                  A = Off_H
+                    adca      <bm_phys_h          A = Off_H + bm_phys_h + Carry
+                    leas      2,s                 restore temporary stack
+                    puls      x,y,u,pc
 
 * --------------------------------------------------------------------
 * InitClutDirect: Build 256-color palette directly in CLUT 0
