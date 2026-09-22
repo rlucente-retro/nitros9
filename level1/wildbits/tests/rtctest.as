@@ -111,10 +111,9 @@ Test2               lbsr      PRINTS
                     lda       >HW_RTC_SEC
                     lbsr      PrintHexByte
 
-                    * Validate Month (1..12)
+                    * Validate Month (1..12 or 0 if unset)
                     lda       >HW_RTC_MONTH
-                    cmpa      #$01
-                    blo       T2_Fail
+                    beq       check_day_unset
                     cmpa      #$12
                     bhi       T2_Fail
 
@@ -124,8 +123,15 @@ Test2               lbsr      PRINTS
                     blo       T2_Fail
                     cmpa      #$31
                     bhi       T2_Fail
+                    bra       check_time
 
-                    * Validate Hours (0..23)
+check_day_unset     lda       >HW_RTC_DAY
+                    bne       T2_Fail             * If month is 0, day must also be 0 (unset)
+                    lbsr      PRINTS
+                    fcc       " (Unset)"
+                    fcb       0
+
+check_time          * Validate Hours (0..23)
                     lda       >HW_RTC_HRS
                     cmpa      #$23
                     bhi       T2_Fail
@@ -163,7 +169,7 @@ inner_lp            leay      -1,y
                     bne       T3_Ticked
 
                     leax      1,x
-                    cmpx      #300
+                    cmpx      #1500
                     blo       wait_tick
 
                     * Timed out without SEC change

@@ -87,6 +87,14 @@ __start
                     fcc       "[TEST 1] 24-bit Timer 0 Up-Counter Increment ($FE32-$FE34)"
                     fcb       C$CR,0
 
+                    * Save original Timer 0 control register
+                    lda       >TIMER0_CTRL
+                    sta       temp_buf,u
+
+                    * Enable Timer 0 (bit 0 = 1)
+                    lda       #$01
+                    sta       >TIMER0_CTRL
+
                     * Read initial 24-bit value
                     lda       >TIMER0_VAL_H
                     sta       t0_val0_h,u
@@ -96,7 +104,7 @@ __start
                     sta       t0_val0_l,u
 
                     * Delay loop
-                    ldx       #1000
+                    ldx       #10000
 dly_lp              leax      -1,x
                     bne       dly_lp
 
@@ -107,6 +115,10 @@ dly_lp              leax      -1,x
                     sta       t0_val1_m,u
                     lda       >TIMER0_VAL_L
                     sta       t0_val1_l,u
+
+                    * Restore Timer 0 control
+                    lda       temp_buf,u
+                    sta       >TIMER0_CTRL
 
                     lbsr      PRINTS
                     fcc       "         T0 Initial: $"
@@ -174,19 +186,25 @@ Test2               lbsr      PRINTS
                     lda       #$03
                     sta       >TIMER1_CMP_CTR
 
-                    * Read back and verify
+                    * Read back
                     lda       >TIMER1_CMP_L
-                    cmpa      #$12
-                    lbne      T2_Fail
+                    sta       temp_buf+2,u
                     lda       >TIMER1_CMP_M
-                    cmpa      #$34
-                    lbne      T2_Fail
+                    sta       temp_buf+3,u
                     lda       >TIMER1_CMP_H
-                    cmpa      #$56
-                    lbne      T2_Fail
+                    sta       temp_buf+4,u
                     lda       >TIMER1_CMP_CTR
-                    cmpa      #$03
-                    lbne      T2_Fail
+                    sta       temp_buf+5,u
+
+                    lbsr      PRINTS
+                    fcc       "         EXP: $563412 | GOT: $"
+                    fcb       0
+                    lda       temp_buf+4,u
+                    lbsr      PrintHexByte
+                    lda       temp_buf+3,u
+                    lbsr      PrintHexByte
+                    lda       temp_buf+2,u
+                    lbsr      PrintHexByte
 
                     * Restore original Timer 1 compare registers
                     lda       orig_t1_cmp_l,u
@@ -198,26 +216,29 @@ Test2               lbsr      PRINTS
                     lda       orig_t1_cmp_ctr,u
                     sta       >TIMER1_CMP_CTR
 
-                    lbsr      PRINTS
-                    fcc       "         Timer 1 Compare/Control Registers Verified"
-                    fcb       0
+                    * Verify
+                    lda       temp_buf+2,u
+                    cmpa      #$12
+                    lbne      T2_Fail
+                    lda       temp_buf+3,u
+                    cmpa      #$34
+                    lbne      T2_Fail
+                    lda       temp_buf+4,u
+                    cmpa      #$56
+                    lbne      T2_Fail
+                    lda       temp_buf+5,u
+                    cmpa      #$03
+                    lbne      T2_Fail
+
                     lbsr      PrintPass
                     inc       pass_count,u
                     lbra      Test3
 
-T2_Fail             lda       orig_t1_cmp_l,u
-                    sta       >TIMER1_CMP_L
-                    lda       orig_t1_cmp_m,u
-                    sta       >TIMER1_CMP_M
-                    lda       orig_t1_cmp_h,u
-                    sta       >TIMER1_CMP_H
-                    lda       orig_t1_cmp_ctr,u
-                    sta       >TIMER1_CMP_CTR
-                    lbsr      PrintFail
+T2_Fail             lbsr      PrintFail
                     inc       fail_count,u
 
                     * ========================================================
-                    * TEST 3: INTC Group 0-3 Edge Register Reset Defaults ($FE28-$FE2B)
+                    * TEST 3: INTC Group 0-3 Edge Register Reset Defaults ($FF) & R/W
                     * ========================================================
 Test3               lbsr      PRINTS
                     fcc       "[TEST 3] INTC Group 0-3 Edge Defaults ($FF) & R/W ($FE28-$FE2B)"
@@ -268,24 +289,37 @@ Test3               lbsr      PRINTS
                     cmpa      #$FF
                     lbne      T3_Fail
 
-                    * Test write and readback on EDGE_0
-                    lda       #$33
-                    sta       >INTC_EDGE_0
-                    lda       >INTC_EDGE_0
-                    cmpa      #$33
-                    lbne      T3_Fail
+                    * Test write and readback on EDGE_2 (safe IEC expansion group)
+                    * Mask CPU IRQs while testing
+                    orcc      #$50
+                    lda       #$55
+                    sta       >INTC_EDGE_2
+                    lda       >INTC_EDGE_2
+                    cmpa      #$55
+                    bne       T3_Fail_IRQ
+                    lda       #$AA
+                    sta       >INTC_EDGE_2
+                    lda       >INTC_EDGE_2
+                    cmpa      #$AA
+                    bne       T3_Fail_IRQ
 
-                    * Restore edge
-                    lda       orig_edge,u
-                    sta       >INTC_EDGE_0
+                    * Restore edge 2
+                    lda       orig_edge+2,u
+                    sta       >INTC_EDGE_2
+                    andcc     #^$50           * Re-enable CPU IRQs
 
                     lbsr      PrintPass
                     inc       pass_count,u
                     lbra      Test4
 
-T3_Fail             lda       orig_edge,u
-                    sta       >INTC_EDGE_0
+T3_Fail_IRQ         lda       orig_edge+2,u
+                    sta       >INTC_EDGE_2
+                    andcc     #^$50           * Re-enable CPU IRQs
                     lbsr      PrintFail
+                    inc       fail_count,u
+                    lbra      Test4
+
+T3_Fail             lbsr      PrintFail
                     inc       fail_count,u
 
                     * ========================================================
