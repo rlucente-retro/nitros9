@@ -213,12 +213,8 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     sta       >DMA_SZ_1D_M
                     clr       >DMA_SZ_1D_L
 
-                    lda       #DMA_CTRL_Start_Trf+DMA_CTRL_Fill+DMA_CTRL_Enable
-                    sta       >DMA_CTRL
-
-dma_w1              lda       >DMA_STATUS
-                    bita      #DMA_STATUS_TRF_IP
-                    bne       dma_w1
+                    lda       #DMA_CTRL_Fill+DMA_CTRL_Enable
+                    lbsr      TriggerDma
 
 * ====================================================================
 * Step 5: DEMO 2 - 2D Rectangular DMA Fill (Cascading Windows with Stride)
@@ -421,17 +417,15 @@ DmaFillRect         pshs      a,x,y
                     lda       #50                 Height = 50 rows
                     sta       >DMA_SZ_Y_L
 
-                    lda       #1                  Destination Stride = 320 ($0140)
+                    lda       #1                  Destination & Source Stride = 320 ($0140)
                     sta       >DMA_STRD_D_H
+                    sta       >DMA_STRD_S_H
                     lda       #$40
                     sta       >DMA_STRD_D_L
+                    sta       >DMA_STRD_S_L
 
-                    lda       #DMA_CTRL_Start_Trf+DMA_CTRL_1D_2D+DMA_CTRL_Fill+DMA_CTRL_Enable
-                    sta       >DMA_CTRL
-
-dfr_wait            lda       >DMA_STATUS
-                    bita      #DMA_STATUS_TRF_IP
-                    bne       dfr_wait
+                    lda       #DMA_CTRL_1D_2D+DMA_CTRL_Fill+DMA_CTRL_Enable
+                    lbsr      TriggerDma
 
                     puls      a,x,y,pc
 
@@ -455,19 +449,39 @@ DmaFillBox          pshs      a,x,y
                     lda       #40                 Height = 40 rows
                     sta       >DMA_SZ_Y_L
 
-                    lda       #1                  Destination Stride = 320 ($0140)
+                    lda       #1                  Destination & Source Stride = 320 ($0140)
                     sta       >DMA_STRD_D_H
+                    sta       >DMA_STRD_S_H
                     lda       #$40
                     sta       >DMA_STRD_D_L
+                    sta       >DMA_STRD_S_L
 
-                    lda       #DMA_CTRL_Start_Trf+DMA_CTRL_1D_2D+DMA_CTRL_Fill+DMA_CTRL_Enable
-                    sta       >DMA_CTRL
-
-dfb_wait            lda       >DMA_STATUS
-                    bita      #DMA_STATUS_TRF_IP
-                    bne       dfb_wait
+                    lda       #DMA_CTRL_1D_2D+DMA_CTRL_Fill+DMA_CTRL_Enable
+                    lbsr      TriggerDma
 
                     puls      a,x,y,pc
+
+* --------------------------------------------------------------------
+* TriggerDma: Hardware-safe DMA transfer execution
+* Entry: A = DMA_CTRL mode bits (DMA_CTRL_Enable included, Start_Trf=0)
+* Ensures:
+*  1. DMA_CTRL_Enable is active BEFORE Start_Trf goes high
+*  2. Clean 0 -> 1 rising edge on Start_Trf
+*  3. Waits for transfer completion (DMA_STATUS_TRF_IP clears)
+*  4. Clears Start_Trf back to 0 so next transfer can trigger cleanly
+* --------------------------------------------------------------------
+TriggerDma          pshs      a
+                    sta       >DMA_CTRL           write mode + enable (Start_Trf=0)
+                    ora       #DMA_CTRL_Start_Trf strobe rising edge on Start_Trf
+                    sta       >DMA_CTRL
+
+td_wait             lda       >DMA_STATUS
+                    bita      #DMA_STATUS_TRF_IP
+                    bne       td_wait
+
+                    puls      a                   restore mode + enable (Start_Trf=0)
+                    sta       >DMA_CTRL           clear Start_Trf back to 0!
+                    rts
 
 * --------------------------------------------------------------------
 * CalcPixelPhys: Calculate 24-bit physical address for (X, Y) on BM0
