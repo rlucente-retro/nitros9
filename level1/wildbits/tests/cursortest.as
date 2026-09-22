@@ -146,37 +146,52 @@ Test3               lbsr      PRINTS
                     lbsr      PrintHexWord
                     lbsr      PRINTS
                     fcc       ")"
-                    fcb       0
+                    fcb       C$CR,0
 
+                    orcc      #$50
                     * Write test coordinates: X = $0028 (40), Y = $000F (15)
                     ldd       #$0028
                     std       >VKY_CRSR_X_H
                     ldd       #$000F
                     std       >VKY_CRSR_Y_H
 
-                    * Verify readback
+                    * Read back
                     ldd       >VKY_CRSR_X_H
-                    cmpd      #$0028
-                    lbne      T3_Fail
+                    std       temp_buf+2,u
                     ldd       >VKY_CRSR_Y_H
-                    cmpd      #$000F
-                    lbne      T3_Fail
+                    std       temp_buf+4,u
 
                     * Restore original coordinates
                     ldd       orig_crsr_x,u
                     std       >VKY_CRSR_X_H
                     ldd       orig_crsr_y,u
                     std       >VKY_CRSR_Y_H
+                    andcc     #^$50
+
+                    lbsr      PRINTS
+                    fcc       "         EXP: X=$0028 Y=$000F | GOT: X=$"
+                    fcb       0
+                    ldd       temp_buf+2,u
+                    lbsr      PrintHexWord
+                    lbsr      PRINTS
+                    fcc       " Y=$"
+                    fcb       0
+                    ldd       temp_buf+4,u
+                    lbsr      PrintHexWord
+
+                    * Verify readback
+                    ldd       temp_buf+2,u
+                    cmpd      #$0028
+                    lbne      T3_Fail
+                    ldd       temp_buf+4,u
+                    cmpd      #$000F
+                    lbne      T3_Fail
 
                     lbsr      PrintPass
                     inc       pass_count,u
                     lbra      Test4
 
-T3_Fail             ldd       orig_crsr_x,u
-                    std       >VKY_CRSR_X_H
-                    ldd       orig_crsr_y,u
-                    std       >VKY_CRSR_Y_H
-                    lbsr      PrintFail
+T3_Fail             lbsr      PrintFail
                     inc       fail_count,u
 
                     * ========================================================
