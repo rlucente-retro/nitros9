@@ -23,7 +23,7 @@ Level               set       2
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       6
+edition             set       7
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
@@ -400,9 +400,10 @@ ExitErr             ldb       #1
 * Implemented via 50 hardware 1D DMA line fills (fully hardware-safe)
 * --------------------------------------------------------------------
 DmaFillRect         pshs      a,x,y,u
-                    sta       >DMA_DATA_WRITE     set fill color
                     ldu       #50                 50 rows
-dfr_row_lp          lbsr      CalcPixelPhys       compute 24-bit physical address for (X, Y)
+dfr_row_lp          lda       ,s                  restore fill color
+                    sta       >DMA_DATA_WRITE     ensure fill byte is set
+                    lbsr      CalcPixelPhys       compute 24-bit physical address for (X, Y)
                     sta       >DMA_DST_H
                     stb       >DMA_DST_M
                     lda       <temp_buf
@@ -429,9 +430,10 @@ dfr_row_lp          lbsr      CalcPixelPhys       compute 24-bit physical addres
 * Implemented via 40 hardware 1D DMA line fills (fully hardware-safe)
 * --------------------------------------------------------------------
 DmaFillBox          pshs      a,x,y,u
-                    sta       >DMA_DATA_WRITE     set fill color
                     ldu       #40                 40 rows
-dfb_row_lp          lbsr      CalcPixelPhys       compute 24-bit physical address for (X, Y)
+dfb_row_lp          lda       ,s                  restore fill color
+                    sta       >DMA_DATA_WRITE     ensure fill byte is set
+                    lbsr      CalcPixelPhys       compute 24-bit physical address for (X, Y)
                     sta       >DMA_DST_H
                     stb       >DMA_DST_M
                     lda       <temp_buf
@@ -454,23 +456,35 @@ dfb_row_lp          lbsr      CalcPixelPhys       compute 24-bit physical addres
                     puls      a,x,y,u,pc
 
 * --------------------------------------------------------------------
-* ExecDma1D: Execute a 1D DMA transfer with bounded timeout safety
+* ExecDma1D: Execute a 1D DMA transfer with two-step enable + strobe
 * Entry: A = DMA_CTRL command byte (includes DMA_CTRL_Start_Trf)
-* Ensures:
-*  1. Initiates transfer cleanly
-*  2. Bounded wait loop on DMA_STATUS_TRF_IP (never hangs machine)
-*  3. Clears Start_Trf back to 0 so next transfer can trigger cleanly
+* Protocol:
+*  1. Writes mode + DMA_CTRL_Enable with Start_Trf = 0
+*  2. Strobes Start_Trf (0 -> 1 rising edge) while Enable is ALREADY high
+*  3. Bounded wait loop on DMA_STATUS_TRF_IP (never hangs machine)
+*  4. Clears Start_Trf back to 0 (leaving Enable active for next transfer)
 * --------------------------------------------------------------------
 ExecDma1D           pshs      a,y
-                    sta       >DMA_CTRL           start transfer
-                    ldy       #0                  bounded timeout (~65,536 loops)
+* Step 1: Ensure DMA_CTRL_Enable is high and Start_Trf is 0
+                    anda      #^DMA_CTRL_Start_Trf
+                    sta       >DMA_CTRL
+
+* Step 2: Strobe Start_Trf (0 -> 1 rising edge) while Enable is ALREADY high!
+                    ora       #DMA_CTRL_Start_Trf
+                    sta       >DMA_CTRL
+
+* Step 3: Bounded wait for TRF_IP to clear (0x00 = transfer complete)
+                    ldy       #0                  up to 65,536 loops
 ed_wait             lda       >DMA_STATUS
                     bita      #DMA_STATUS_TRF_IP
-                    beq       ed_done
+                    beq       ed_done             bit 7 is 0 -> transfer complete!
                     leay      -1,y
                     bne       ed_wait
 
-ed_done             clr       >DMA_CTRL           clear Start_Trf for next transfer!
+ed_done
+* Step 4: Clear Start_Trf back to 0, leaving Enable active for next transfer!
+                    anda      #^DMA_CTRL_Start_Trf
+                    sta       >DMA_CTRL
                     puls      a,y,pc
 
 * --------------------------------------------------------------------
