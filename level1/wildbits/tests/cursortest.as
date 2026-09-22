@@ -129,9 +129,15 @@ Test3               lbsr      PRINTS
                     fcb       C$CR,0
 
                     * Preserve existing cursor coordinates
-                    ldd       >VKY_CRSR_X_H
+                    * Hardware readback order: $FFD4=X_L, $FFD5=X_H, $FFD6=Y_L, $FFD7=Y_H
+                    lda       >VKY_CRSR_X_H   * $FFD4: X low byte
+                    ldb       >VKY_CRSR_X_L   * $FFD5: X high byte
+                    exg       a,b             * D = X (high:low)
                     std       orig_crsr_x,u
-                    ldd       >VKY_CRSR_Y_H
+
+                    lda       >VKY_CRSR_Y_H   * $FFD6: Y low byte
+                    ldb       >VKY_CRSR_Y_L   * $FFD7: Y high byte
+                    exg       a,b             * D = Y (high:low)
                     std       orig_crsr_y,u
 
                     lbsr      PRINTS
@@ -150,15 +156,21 @@ Test3               lbsr      PRINTS
 
                     orcc      #$50
                     * Write test coordinates: X = $0028 (40), Y = $000F (15)
+                    * Write order: $FFD4=X_H, $FFD5=X_L, $FFD6=Y_H, $FFD7=Y_L
                     ldd       #$0028
                     std       >VKY_CRSR_X_H
                     ldd       #$000F
                     std       >VKY_CRSR_Y_H
 
-                    * Read back
-                    ldd       >VKY_CRSR_X_H
+                    * Read back using hardware decode: $FFD4=X_L, $FFD5=X_H, $FFD6=Y_L, $FFD7=Y_H
+                    lda       >VKY_CRSR_X_H
+                    ldb       >VKY_CRSR_X_L
+                    exg       a,b
                     std       temp_buf+2,u
-                    ldd       >VKY_CRSR_Y_H
+
+                    lda       >VKY_CRSR_Y_H
+                    ldb       >VKY_CRSR_Y_L
+                    exg       a,b
                     std       temp_buf+4,u
 
                     * Restore original coordinates
