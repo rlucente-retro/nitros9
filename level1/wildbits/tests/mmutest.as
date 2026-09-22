@@ -51,6 +51,7 @@ __start
                     fcc       "[TEST 1] Inactive Edit-LUT 2 Programming (No Active Corruption)"
                     fcb       C$CR,0
 
+                    orcc      #$50
                     * Preserve existing slot 4 of LUT 2
                     lda       orig_mem_ctrl,u
                     anda      #$0F
@@ -65,6 +66,13 @@ __start
                     lda       >MMU_SLOT_4
                     sta       slot4_val,u
 
+                    * Restore LUT 2 Slot 4 and MMU_MEM_CTRL immediately
+                    lda       orig_slot4_lut2,u
+                    sta       >MMU_SLOT_4
+                    lda       orig_mem_ctrl,u
+                    sta       >MMU_MEM_CTRL
+                    andcc     #^$50
+
                     lbsr      PRINTS
                     fcc       "         EXP: $2A | GOT: $"
                     fcb       0
@@ -75,17 +83,11 @@ __start
                     cmpa      #$2A
                     bne       T1_Fail
 
-                    * Restore LUT 2 Slot 4
-                    lda       orig_slot4_lut2,u
-                    sta       >MMU_SLOT_4
-
                     lbsr      PrintPass
                     inc       pass_count,u
                     bra       Test2
 
-T1_Fail             lda       orig_slot4_lut2,u
-                    sta       >MMU_SLOT_4
-                    lbsr      PrintFail
+T1_Fail             lbsr      PrintFail
                     inc       fail_count,u
 
                     * ========================================================
@@ -95,6 +97,7 @@ Test2               lbsr      PRINTS
                     fcc       "[TEST 2] Edit-LUT 0 Selector Decoding (bits 5:4 = %00)"
                     fcb       C$CR,0
 
+                    orcc      #$50
                     * Explicitly select Edit-LUT 0
                     lda       orig_mem_ctrl,u
                     anda      #$0F            * bits 5:4 = 0 (Edit LUT 0)
@@ -102,18 +105,22 @@ Test2               lbsr      PRINTS
 
                     * Readback Slot 0 of LUT 0
                     lda       >MMU_SLOT_0
+                    sta       temp_buf+2,u
+
+                    * Restore MMU_MEM_CTRL
+                    lda       orig_mem_ctrl,u
+                    sta       >MMU_MEM_CTRL
+                    andcc     #^$50
+
                     lbsr      PRINTS
                     fcc       "         LUT 0 Slot 0 Readback: Block $"
                     fcb       0
+                    lda       temp_buf+2,u
                     lbsr      PrintHexByte
 
                     * In NitrOS-9 Level 2, Slot 0 is typically Block $00 or RAM
                     lbsr      PrintPass
                     inc       pass_count,u
-
-                    * Restore MMU_MEM_CTRL
-                    lda       orig_mem_ctrl,u
-                    sta       >MMU_MEM_CTRL
 
                     * ========================================================
                     * TEST 3: Constant RAM Overlay at $FD00 ($FFA1 bit 0)
@@ -122,6 +129,7 @@ Test3               lbsr      PRINTS
                     fcc       "[TEST 3] Constant RAM Shadowing at $FD00-$FDFF"
                     fcb       C$CR,0
 
+                    orcc      #$50
                     * Enable Constant RAM (bit 0 = 1)
                     lda       orig_io_ctrl,u
                     ora       #$01
@@ -133,34 +141,37 @@ Test3               lbsr      PRINTS
                     lda       #$5A
                     sta       >$FD00
                     lda       >$FD00
-                    cmpa      #$5A
-                    bne       T3_Fail
+                    sta       temp_buf+2,u
 
                     * Test write and read pattern $A5
                     lda       #$A5
                     sta       >$FD00
                     lda       >$FD00
-                    cmpa      #$A5
-                    bne       T3_Fail
+                    sta       temp_buf+3,u
 
                     * Restore byte and disable Constant RAM
                     lda       orig_cram_byte,u
                     sta       >$FD00
                     lda       orig_io_ctrl,u
                     sta       >MMU_IO_CTRL
+                    andcc     #^$50
 
                     lbsr      PRINTS
                     fcc       "         Constant RAM R/W Pattern Test"
                     fcb       0
+
+                    lda       temp_buf+2,u
+                    cmpa      #$5A
+                    bne       T3_Fail
+                    lda       temp_buf+3,u
+                    cmpa      #$A5
+                    bne       T3_Fail
+
                     lbsr      PrintPass
                     inc       pass_count,u
                     bra       Test4
 
-T3_Fail             lda       orig_cram_byte,u
-                    sta       >$FD00
-                    lda       orig_io_ctrl,u
-                    sta       >MMU_IO_CTRL
-                    lbsr      PrintFail
+T3_Fail             lbsr      PrintFail
                     inc       fail_count,u
 
                     * ========================================================
@@ -170,6 +181,7 @@ Test4               lbsr      PRINTS
                     fcc       "[TEST 4] Vector RAM Overlay at $FFF0-$FFFF"
                     fcb       C$CR,0
 
+                    orcc      #$50
                     * Enable Vector RAM (bit 1 = 1)
                     lda       orig_io_ctrl,u
                     ora       #$02
@@ -179,23 +191,26 @@ Test4               lbsr      PRINTS
                     lda       #$3C
                     sta       >$FFF0
                     lda       >$FFF0
-                    cmpa      #$3C
-                    bne       T4_Fail
+                    sta       temp_buf+2,u
 
                     * Restore original MMU_IO_CTRL
                     lda       orig_io_ctrl,u
                     sta       >MMU_IO_CTRL
+                    andcc     #^$50
 
                     lbsr      PRINTS
                     fcc       "         Vector RAM Overlay R/W Test"
                     fcb       0
+
+                    lda       temp_buf+2,u
+                    cmpa      #$3C
+                    bne       T4_Fail
+
                     lbsr      PrintPass
                     inc       pass_count,u
                     bra       Test5
 
-T4_Fail             lda       orig_io_ctrl,u
-                    sta       >MMU_IO_CTRL
-                    lbsr      PrintFail
+T4_Fail             lbsr      PrintFail
                     inc       fail_count,u
 
                     * ========================================================
@@ -205,6 +220,7 @@ Test5               lbsr      PRINTS
                     fcc       "[TEST 5] Cartridge Decode Blocks $80-$9F Isolation"
                     fcb       C$CR,0
 
+                    orcc      #$50
                     * In Edit-LUT 2, test mapping Cartridge Blocks $80 and $90
                     lda       orig_mem_ctrl,u
                     anda      #$0F
@@ -222,13 +238,11 @@ Test5               lbsr      PRINTS
                     lda       #$90
                     sta       >MMU_SLOT_5
 
-                    * Verify readback from Edit-LUT 2 slot registers
+                    * Read back
                     lda       >MMU_SLOT_4
-                    cmpa      #$80
-                    lbne      T5_EditFail
+                    sta       temp_buf+2,u
                     lda       >MMU_SLOT_5
-                    cmpa      #$90
-                    lbne      T5_EditFail
+                    sta       temp_buf+3,u
 
                     * Restore Edit-LUT 2
                     lda       orig_slot4_lut2,u
@@ -237,10 +251,25 @@ Test5               lbsr      PRINTS
                     sta       >MMU_SLOT_5
                     lda       orig_mem_ctrl,u
                     sta       >MMU_MEM_CTRL
+                    andcc     #^$50
 
-                    * Now test dynamic mapping of Cartridge Block $80 via F$MapBlk
+                    * Verify readback from Edit-LUT 2 slot registers
+                    lda       temp_buf+2,u
+                    cmpa      #$80
+                    lbne      T5_EditFail
+                    lda       temp_buf+3,u
+                    cmpa      #$90
+                    lbne      T5_EditFail
+
+                    * Now test dynamic mapping of Block $80 with FLASHDIS active
+                    orcc      #$50
+                    lda       orig_io_ctrl,u
+                    ora       #$04            * Enable FLASHDIS ($FFA1 bit 2)
+                    sta       >MMU_IO_CTRL
+                    andcc     #^$50
+
                     pshs      u
-                    ldx       #$80            * Cartridge block $80 (/c0)
+                    ldx       #$80            * Cartridge block $80 remapped to SRAM
                     ldb       #1              * 1 block
                     os9       F$MapBlk
                     lbcs      T5_MapErr
@@ -270,6 +299,12 @@ Test5               lbsr      PRINTS
                     os9       F$ClrBlk
                     puls      u
 
+                    * Restore original MMU_IO_CTRL (disable FLASHDIS)
+                    orcc      #$50
+                    lda       orig_io_ctrl,u
+                    sta       >MMU_IO_CTRL
+                    andcc     #^$50
+
                     lbsr      PRINTS
                     fcc       "         Cartridge Decode & Mapping Verified"
                     fcb       0
@@ -277,17 +312,15 @@ Test5               lbsr      PRINTS
                     inc       pass_count,u
                     lbra      Summary
 
-T5_EditFail         lda       orig_slot4_lut2,u
-                    sta       >MMU_SLOT_4
-                    lda       orig_slot5_lut2,u
-                    sta       >MMU_SLOT_5
-                    lda       orig_mem_ctrl,u
-                    sta       >MMU_MEM_CTRL
-                    lbsr      PrintFail
+T5_EditFail         lbsr      PrintFail
                     inc       fail_count,u
                     lbra      Summary
 
 T5_MapErr           puls      u
+                    orcc      #$50
+                    lda       orig_io_ctrl,u
+                    sta       >MMU_IO_CTRL
+                    andcc     #^$50
                     lbsr      PRINTS
                     fcc       "         F$MapBlk on Block $80 Failed"
                     fcb       0
@@ -301,6 +334,10 @@ T5_DataErr          ldx       cart_addr,u
                     ldb       #1
                     os9       F$ClrBlk
                     puls      u
+                    orcc      #$50
+                    lda       orig_io_ctrl,u
+                    sta       >MMU_IO_CTRL
+                    andcc     #^$50
                     lbsr      PRINTS
                     fcc       "         Cartridge Data Mismatch"
                     fcb       0
