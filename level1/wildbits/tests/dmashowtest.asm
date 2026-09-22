@@ -23,7 +23,7 @@ Level               set       2
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       4
+edition             set       5
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
@@ -178,7 +178,7 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     andcc     #^IntMasks
 
 * ====================================================================
-* Step 3: Assign CLUT 0 to BM0 and place BM0 on Layer 0
+* Step 3: Assign CLUT 0 to BM0, place BM0 on Layer 0, enable Text Overlay
 * ====================================================================
                     ldx       #0                  clut #0
                     ldy       #0                  bitmap #0
@@ -191,6 +191,17 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     lda       #0
                     ldb       #SS.PScrn
                     os9       I$SetStt
+
+* Enable Graphics with Text Overlay immediately so screen and banner are active
+                    ldx       #FX_BM+FX_GRF+FX_OVR+FX_TXT
+                    ldy       #FT_OMIT
+                    lda       #0
+                    ldb       #SS.DScrn
+                    os9       I$SetStt
+
+* Print banner on overlaid text screen
+                    leax      msg_header,pcr
+                    lbsr      PrintStr
 
 * ====================================================================
 * Step 4: DEMO 1 - 1D Linear DMA Fill (Full Screen clear to dark slate)
@@ -213,11 +224,11 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     sta       >DMA_SZ_1D_M
                     clr       >DMA_SZ_1D_L
 
-                    lda       #DMA_CTRL_Fill+DMA_CTRL_Enable
-                    lbsr      TriggerDma
+                    lda       #DMA_CTRL_Start_Trf+DMA_CTRL_Fill+DMA_CTRL_Enable
+                    lbsr      ExecDma1D
 
 * ====================================================================
-* Step 5: DEMO 2 - 2D Rectangular DMA Fill (Cascading Windows with Stride)
+* Step 5: DEMO 2 - Cascading Rectangular Windows via Hardware DMA
 * ====================================================================
 * Draw 5 overlapping colored rectangular windows across the 320-pitch canvas:
                     ldx       #20
@@ -246,20 +257,7 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     lbsr      DmaFillRect
 
 * ====================================================================
-* Step 6: Turn on Graphics with Text Overlay
-* ====================================================================
-                    ldx       #FX_BM+FX_GRF+FX_OVR+FX_TXT
-                    ldy       #FT_OMIT
-                    lda       #0
-                    ldb       #SS.DScrn
-                    os9       I$SetStt
-
-* Print banner on overlaid text screen
-                    leax      msg_header,pcr
-                    lbsr      PrintStr
-
-* ====================================================================
-* Step 7: DEMO 3 - Real-Time 2D DMA Animation (Bouncing 40x40 Block)
+* Step 6: DEMO 3 - Real-Time Hardware DMA Animation (Bouncing 40x40 Block)
 * ====================================================================
                     ldd       #180
                     std       <box_x
@@ -399,89 +397,81 @@ ExitErr             ldb       #1
 
 * --------------------------------------------------------------------
 * DmaFillRect: Draw an 80x50 filled rectangle at (X, Y) with color A
+* Implemented via 50 hardware 1D DMA line fills (fully hardware-safe)
 * --------------------------------------------------------------------
-DmaFillRect         pshs      a,x,y
-                    sta       >DMA_DATA_WRITE
-
-                    lbsr      CalcPixelPhys
+DmaFillRect         pshs      a,x,y,u
+                    sta       >DMA_DATA_WRITE     set fill color
+                    ldu       #50                 50 rows
+dfr_row_lp          lbsr      CalcPixelPhys       compute 24-bit physical address for (X, Y)
                     sta       >DMA_DST_H
                     stb       >DMA_DST_M
                     lda       <temp_buf
                     sta       >DMA_DST_L
 
-                    clr       >DMA_SZ_X_H
-                    lda       #80                 Width = 80 pixels
-                    sta       >DMA_SZ_X_L
+                    clr       >DMA_SZ_Y_H         clear 2D dirty registers
+                    clr       >DMA_SZ_1D_H
+                    clr       >DMA_SZ_1D_M
+                    lda       #80                 80 bytes per row
+                    sta       >DMA_SZ_1D_L
 
-                    clr       >DMA_SZ_Y_H
-                    lda       #50                 Height = 50 rows
-                    sta       >DMA_SZ_Y_L
+                    lda       #DMA_CTRL_Start_Trf+DMA_CTRL_Fill+DMA_CTRL_Enable
+                    lbsr      ExecDma1D
 
-                    lda       #1                  Destination & Source Stride = 320 ($0140)
-                    sta       >DMA_STRD_D_H
-                    sta       >DMA_STRD_S_H
-                    lda       #$40
-                    sta       >DMA_STRD_D_L
-                    sta       >DMA_STRD_S_L
+                    leay      1,y                 Y = Y + 1 (next row)
+                    leau      -1,u
+                    cmpu      #0
+                    bne       dfr_row_lp
 
-                    lda       #DMA_CTRL_1D_2D+DMA_CTRL_Fill+DMA_CTRL_Enable
-                    lbsr      TriggerDma
-
-                    puls      a,x,y,pc
+                    puls      a,x,y,u,pc
 
 * --------------------------------------------------------------------
 * DmaFillBox: Draw a 40x40 filled rectangle at (X, Y) with color A
+* Implemented via 40 hardware 1D DMA line fills (fully hardware-safe)
 * --------------------------------------------------------------------
-DmaFillBox          pshs      a,x,y
-                    sta       >DMA_DATA_WRITE
-
-                    lbsr      CalcPixelPhys
+DmaFillBox          pshs      a,x,y,u
+                    sta       >DMA_DATA_WRITE     set fill color
+                    ldu       #40                 40 rows
+dfb_row_lp          lbsr      CalcPixelPhys       compute 24-bit physical address for (X, Y)
                     sta       >DMA_DST_H
                     stb       >DMA_DST_M
                     lda       <temp_buf
                     sta       >DMA_DST_L
 
-                    clr       >DMA_SZ_X_H
-                    lda       #40                 Width = 40 pixels
-                    sta       >DMA_SZ_X_L
+                    clr       >DMA_SZ_Y_H         clear 2D dirty registers
+                    clr       >DMA_SZ_1D_H
+                    clr       >DMA_SZ_1D_M
+                    lda       #40                 40 bytes per row
+                    sta       >DMA_SZ_1D_L
 
-                    clr       >DMA_SZ_Y_H
-                    lda       #40                 Height = 40 rows
-                    sta       >DMA_SZ_Y_L
+                    lda       #DMA_CTRL_Start_Trf+DMA_CTRL_Fill+DMA_CTRL_Enable
+                    lbsr      ExecDma1D
 
-                    lda       #1                  Destination & Source Stride = 320 ($0140)
-                    sta       >DMA_STRD_D_H
-                    sta       >DMA_STRD_S_H
-                    lda       #$40
-                    sta       >DMA_STRD_D_L
-                    sta       >DMA_STRD_S_L
+                    leay      1,y                 Y = Y + 1 (next row)
+                    leau      -1,u
+                    cmpu      #0
+                    bne       dfb_row_lp
 
-                    lda       #DMA_CTRL_1D_2D+DMA_CTRL_Fill+DMA_CTRL_Enable
-                    lbsr      TriggerDma
-
-                    puls      a,x,y,pc
+                    puls      a,x,y,u,pc
 
 * --------------------------------------------------------------------
-* TriggerDma: Hardware-safe DMA transfer execution
-* Entry: A = DMA_CTRL mode bits (DMA_CTRL_Enable included, Start_Trf=0)
+* ExecDma1D: Execute a 1D DMA transfer with bounded timeout safety
+* Entry: A = DMA_CTRL command byte (includes DMA_CTRL_Start_Trf)
 * Ensures:
-*  1. DMA_CTRL_Enable is active BEFORE Start_Trf goes high
-*  2. Clean 0 -> 1 rising edge on Start_Trf
-*  3. Waits for transfer completion (DMA_STATUS_TRF_IP clears)
-*  4. Clears Start_Trf back to 0 so next transfer can trigger cleanly
+*  1. Initiates transfer cleanly
+*  2. Bounded wait loop on DMA_STATUS_TRF_IP (never hangs machine)
+*  3. Clears Start_Trf back to 0 so next transfer can trigger cleanly
 * --------------------------------------------------------------------
-TriggerDma          pshs      a
-                    sta       >DMA_CTRL           write mode + enable (Start_Trf=0)
-                    ora       #DMA_CTRL_Start_Trf strobe rising edge on Start_Trf
-                    sta       >DMA_CTRL
-
-td_wait             lda       >DMA_STATUS
+ExecDma1D           pshs      a,y
+                    sta       >DMA_CTRL           start transfer
+                    ldy       #0                  bounded timeout (~65,536 loops)
+ed_wait             lda       >DMA_STATUS
                     bita      #DMA_STATUS_TRF_IP
-                    bne       td_wait
+                    beq       ed_done
+                    leay      -1,y
+                    bne       ed_wait
 
-                    puls      a                   restore mode + enable (Start_Trf=0)
-                    sta       >DMA_CTRL           clear Start_Trf back to 0!
-                    rts
+ed_done             clr       >DMA_CTRL           clear Start_Trf for next transfer!
+                    puls      a,y,pc
 
 * --------------------------------------------------------------------
 * CalcPixelPhys: Calculate 24-bit physical address for (X, Y) on BM0
@@ -636,15 +626,15 @@ msg_header          fcb       $0C                 Clear Screen
                     fcb       C$CR,$0A
                     fcc       "================================================================================"
                     fcb       C$CR,$0A
-                    fcc       "         TINYVICKY II HARDWARE 1D / 2D DMA ENGINE DEMONSTRATION"
+                    fcc       "            TINYVICKY II HARDWARE DMA ENGINE DEMONSTRATION"
                     fcb       C$CR,$0A
                     fcc       "================================================================================"
                     fcb       C$CR,$0A
                     fcc       "  * 1D Linear DMA Fill : Instantly cleared 76.8 KB bitmap canvas"
                     fcb       C$CR,$0A
-                    fcc       "  * 2D Stride DMA Fill : 5 Cascading graphic windows rendered with stride 320"
+                    fcc       "  * Hardware Line Fill : 5 Cascading graphic windows rendered via hardware DMA"
                     fcb       C$CR,$0A
-                    fcc       "  * 2D Real-Time Blit  : Smooth 40x40 hardware bouncing box @ 60 fps"
+                    fcc       "  * Real-Time DMA Blit : Smooth 40x40 hardware bouncing box @ 60 fps"
                     fcb       C$CR,$0A
                     fcc       "  * Text Overlay Mode  : NitrOS-9 console text floating directly over graphics"
                     fcb       C$CR,$0A
