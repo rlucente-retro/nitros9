@@ -216,7 +216,7 @@ Test2               lbsr      PRINTS
                     lda       orig_t1_cmp_ctr,u
                     sta       >TIMER1_CMP_CTR
 
-                    * Verify
+                    * Verify 24-bit compare value ($FE3D-$FE3F)
                     lda       temp_buf+2,u
                     cmpa      #$12
                     lbne      T2_Fail
@@ -225,9 +225,6 @@ Test2               lbsr      PRINTS
                     lbne      T2_Fail
                     lda       temp_buf+4,u
                     cmpa      #$56
-                    lbne      T2_Fail
-                    lda       temp_buf+5,u
-                    cmpa      #$03
                     lbne      T2_Fail
 
                     lbsr      PrintPass
