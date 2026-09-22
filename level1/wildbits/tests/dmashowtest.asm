@@ -23,7 +23,7 @@ Level               set       2
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       7
+edition             set       8
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
@@ -108,6 +108,17 @@ start               equ       *
                     ldb       #SS.Opt
                     os9       I$SetStt
 optsdone@
+
+* Drain any residual keys from stdin
+FlushInit           clra                          path 0 (stdin)
+                    ldb       #SS.Ready
+                    os9       I$GetStt
+                    bcs       FlushDone
+                    leax      <temp_buf,u
+                    ldy       #1
+                    os9       I$Read
+                    bcc       FlushInit
+FlushDone
 
 * ====================================================================
 * Step 1: Allocate Bitmap 0 (320x240, 76,800 bytes)
@@ -270,10 +281,10 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     ldd       #900                900 loops (15 seconds at 60 fps)
                     std       <frames_left
 
-AnimLoop            lda       <abort_flag
+AnimLoop            lda       abort_flag,u
                     lbne      CleanExit
 
-* Poll stdin for any keypress
+* Poll stdin for exit keypress
                     clra                          path 0 (stdin)
                     ldb       #SS.Ready
                     os9       I$GetStt
@@ -284,11 +295,18 @@ AnimLoop            lda       <abort_flag
                     os9       I$Read
                     bcs       no_key
                     lda       ,x
-                    cmpa      #$0D                CR?
-                    beq       no_key              ignore leftover enter
-                    cmpa      #$0A                LF?
-                    beq       no_key              ignore leftover linefeed
-                    lbra      CleanExit           any key exits!
+                    cmpa      #$1B                ESC?
+                    lbeq      CleanExit
+                    cmpa      #$20                Space?
+                    lbeq      CleanExit
+                    cmpa      #'q'                'q'?
+                    lbeq      CleanExit
+                    cmpa      #'Q'                'Q'?
+                    lbeq      CleanExit
+                    cmpa      #$03                Ctrl-C?
+                    lbeq      CleanExit
+                    cmpa      #$05                Ctrl-E?
+                    lbeq      CleanExit
 no_key
 
 * Erase old box at (box_x, box_y): 40x40 with background color 24
@@ -343,8 +361,7 @@ draw_box            ldx       <box_x
 * ====================================================================
 * Clean Exit: Restore Text Mode, Flush Keys, and Free Screen RAM
 * ====================================================================
-CleanExit           ldx       #0                  de-register intercept
-                    os9       F$Icpt
+CleanExit           equ       *
 
 * Flush any pending keyboard input
 FlushKeys           clra                          path 0
@@ -473,18 +490,17 @@ ExecDma1D           pshs      a,y
                     ora       #DMA_CTRL_Start_Trf
                     sta       >DMA_CTRL
 
-* Step 3: Bounded wait for TRF_IP to clear (0x00 = transfer complete)
-                    ldy       #0                  up to 65,536 loops
+* Step 3: Bounded wait for transfer completion
+* On physical hardware, the CPU halts during the VBLANK transfer.
+* When CPU resumes, TRF_IP is 0. If TRF_IP is set, wait until clear.
+                    ldy       #10000              safety timeout counter
 ed_wait             lda       >DMA_STATUS
                     bita      #DMA_STATUS_TRF_IP
                     beq       ed_done             bit 7 is 0 -> transfer complete!
                     leay      -1,y
                     bne       ed_wait
 
-ed_done
-* Step 4: Clear Start_Trf back to 0, leaving Enable active for next transfer!
-                    anda      #^DMA_CTRL_Start_Trf
-                    sta       >DMA_CTRL
+ed_done             clr       >DMA_CTRL           clear Start_Trf and disarm engine
                     puls      a,y,pc
 
 * --------------------------------------------------------------------
@@ -626,7 +642,7 @@ ic_lp               stb       ,x                  Blue = index
 * --------------------------------------------------------------------
 * Signal Handler
 * --------------------------------------------------------------------
-SigHandler          inc       <abort_flag
+SigHandler          inc       abort_flag,u
                     rti
 
 * --------------------------------------------------------------------
