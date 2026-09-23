@@ -5,19 +5,24 @@
 * engine on Wildbits Jr2 (FNX6809 core).
 *
 * Allocates and initializes:
-*  - Two 16x16 pixel tiles in a page-aligned buffer in system SRAM
-*    (Tile 0 = transparent, Tile 1 = cyan box with red border,
-*     Tile 2 = navy box with gold diagonal lattice).
-*  - Dedicated 5-color palette loaded into GRPH_LUT1 (leaving shell
-*    palette in LUT0 undisturbed).
-*  - A 20x15 virtual tile matrix of 16-bit entries in system SRAM.
-*  - Dynamically calculates 24-bit physical addresses using the process's
-*    active MMU slot mapping.
-*  - Sets Tile Set 0 base address at $F180 (Page $C0 $1180).
-*  - Configures Tilemap 0 (TL0) at $F100 (Page $C0 $1100) with 20x15 dimensions.
+*  - Page-aligned 16x16 pixel tiles in system SRAM:
+*     Tile 0 = cyan box with red border (non-transparent fallback)
+*     Tile 1 = cyan box with red border
+*     Tile 2 = navy box with gold diagonal lattice.
+*  - 16-color palette loaded into both CLUT 0 and CLUT 1, preserving
+*    and restoring shell CLUT 0 on exit.
+*  - A 22x16 virtual tile matrix of 16-bit entries in system SRAM with
+*    symmetric byte encoding (Byte 0 = Byte 1 = Tile Index) for bulletproof
+*    endianness immunity.
+*  - Page-aligned buffers ensuring 24-bit physical addresses are palindromic
+*    (0, M, 0), immune to address register endianness.
+*  - Configures all 8 Tile Sets (TS0..TS7 at $1180..$119F).
+*  - Configures Tilemap 0 (TL0 at $1100) with 22x16 dimensions.
+*  - Explicitly disables unused Tilemaps 1 and 2 ($110C, $1118).
 *  - Routes TL0 to Layer 0 via $FFC2 (bits 3:0 = 4).
 *  - Enables graphics + text overlay + tilemap ($FFC0 = $17).
-*  - Smoothly scrolls the playfield diagonally for ~10 seconds (or until key/ESC).
+*  - Smoothly scrolls the playfield diagonally with strictly clamped
+*    fine sub-tile offsets (SSX/SSY: 0..15) for ~10 seconds (or until ESC).
 *  - Catches signals (ESC/abort/break) via F$Icpt for a clean, error-free shutdown.
 *  - Restores all registers and exits cleanly to the NitrOS-9 text shell.
 *
@@ -32,6 +37,13 @@
 * aligned tile buffer to 256-byte page boundary, switched palette from
 * LUT0 to LUT1 to preserve shell palette, fixed 24-bit PhysAddr translation
 * using active MMU slot register, and hardened clean exit with SS.DScrn.
+*   7      2026/09/23  Antigravity
+* Hardened against FPGA hardware static/tearing: symmetric dual-byte
+* cell matrix encoding, page-aligned matrix buffer for palindromic 24-bit
+* physical addresses, configured all 8 Tile Sets (TS0..TS7), populated
+* Tile 0 with valid graphic pattern, clamped fine scroll strictly to 0..15,
+* dual-loaded palettes to CLUT 0 & 1 with CLUT 0 preservation/restore, and
+* explicitly disabled unused Tilemaps 1 & 2.
 ********************************************************************
 
                     nam       tltest
@@ -41,21 +53,21 @@
                     use       defsfile
                     endc
 
-MAPSLOT             equ       MMU_SLOT_2          slot register we borrow ($4000)
+MAPSLOT             equ       MMU_SLOT_3          slot register we borrow ($6000)
 MAPADDR             equ       (MAPSLOT-MMU_SLOT_0)*$2000
 GRPH_LUT1_OFF       equ       GRPH_LUT0_OFF+$400  graphics LUT1 (LUTn at +$400*n)
 
 TILE_SIZE_PX        equ       16                  16x16 tiles
 TILE_BYTES          equ       TILE_SIZE_PX*TILE_SIZE_PX
-MAP_W               equ       20                  20 columns
-MAP_H               equ       15                  15 rows
+MAP_W               equ       22                  22 columns (extra margins for smooth scrolling)
+MAP_H               equ       16                  16 rows
 MAP_CELLS           equ       MAP_W*MAP_H
 AUTO_FRAMES         equ       300                 ~10 seconds at ~30 fps
 
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       6
+edition             set       7
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -64,23 +76,23 @@ saveffa0            rmb       1
 saveslot            rmb       1
 savemcr             rmb       1
 savelayer0          rmb       1
-scroll_x            rmb       2
-scroll_y            rmb       2
+fine_scroll         rmb       1                   sub-tile fine scroll (0..15)
 frames_left         rmb       2                   countdown to auto-exit
 sig_flag            rmb       1                   signal received flag
 scratch             rmb       1
 tilebase            rmb       2                   page-aligned logical base address of tile set
-matbase             rmb       2                   logical base address of tilemap matrix
+matbase             rmb       2                   page-aligned logical base address of tilemap matrix
 tile_phys_h         rmb       1
 tile_phys_m         rmb       1
 tile_phys_l         rmb       1
 mat_phys_h          rmb       1
 mat_phys_m          rmb       1
 mat_phys_l          rmb       1
+save_clut0          rmb       16                  saved original CLUT 0 entries 1..4 (16 bytes)
 * Raw buffer for 3 tiles (3 * 256 = 768 bytes), page-aligned inside 1024 bytes
 tileraw             rmb       1024
-* Tilemap matrix (20x15 = 300 words = 600 bytes)
-map_matrix          rmb       MAP_CELLS*2
+* Raw buffer for tilemap matrix (22x16 = 352 cells * 2 = 704 bytes), page-aligned inside 1024 bytes
+matraw              rmb       1024
                     rmb       256                 stack
 size                equ       .
 
@@ -116,6 +128,7 @@ FlushDone           equ       *
 * Set auto-exit countdown (~10 seconds at ~30 fps)
                     ldd       #AUTO_FRAMES
                     std       <frames_left
+                    clr       <fine_scroll
 
 * ---- 1. Compute Page-Aligned Tile Base and Matrix Base ----
 * Align tile base to 256-byte page boundary inside tileraw
@@ -124,11 +137,16 @@ FlushDone           equ       *
                     clrb                          round down to page boundary (low byte = 0)
                     std       <tilebase
 
-* Matrix base address
-                    leax      map_matrix,u
-                    stx       <matbase
+* Align matrix base to 256-byte page boundary inside matraw
+                    leax      matraw+255,u
+                    tfr       x,d
+                    clrb                          round down to page boundary (low byte = 0)
+                    std       <matbase
 
 * Compute 24-bit physical addresses BEFORE mapping VRAM windows
+* Because tilebase and matbase are page-aligned (low byte = 0) and
+* in SRAM < 512KB (high byte = 0), both addresses are palindromic:
+* (0, M, 0), making them 100% endian-neutral!
                     ldd       <tilebase
                     lbsr      PhysAddr            returns A=H, B=M, scratch=L
                     sta       <tile_phys_h
@@ -143,39 +161,14 @@ FlushDone           equ       *
                     lda       <scratch
                     sta       <mat_phys_l
 
-* ---- 2. Initialize Tile 0 (16x16: Transparent: all 0) ----
+* ---- 2. Initialize Tile 0 (Populated with Tile 1 Pattern for Non-Transparent Fallback) ----
                     ldx       <tilebase
-                    ldd       #0
-                    ldy       #TILE_BYTES/2
-clr0@               std       ,x++
-                    leay      -1,y
-                    bne       clr0@
+                    lbsr      MakeTile1
 
 * ---- 3. Initialize Tile 1 (16x16: Red border = Color 1, Cyan interior = Color 2) ----
                     ldx       <tilebase
                     leax      TILE_BYTES,x        Tile 1 starts at +256
-                    clr       <scratch            scratch = row (0..15)
-row1@               clrb                          B = col (0..15)
-col1@               tst       <scratch            top edge?
-                    beq       border1@
-                    lda       <scratch
-                    cmpa      #15                 bottom edge?
-                    beq       border1@
-                    tstb                          left edge?
-                    beq       border1@
-                    cmpb      #15                 right edge?
-                    beq       border1@
-                    lda       #2                  Color 2: Cyan interior
-                    bra       pix1_st@
-border1@            lda       #1                  Color 1: Red border
-pix1_st@            sta       ,x+
-                    incb
-                    cmpb      #16
-                    bne       col1@
-                    inc       <scratch
-                    lda       <scratch
-                    cmpa      #16
-                    bne       row1@
+                    lbsr      MakeTile1
 
 * ---- 4. Initialize Tile 2 (16x16: Gold diagonal lattice = Color 3, Navy bg = Color 4) ----
                     ldx       <tilebase
@@ -203,12 +196,14 @@ pix2_st@            sta       ,x+
                     cmpa      #16
                     bne       row2@
 
-* ---- 5. Fill the 20x15 Tilemap Matrix ----
+* ---- 5. Fill the 22x16 Tilemap Matrix ----
 * Checkerboard alternation of Tile 1 and Tile 2.
-* Each cell: Byte 0 = tile index (1 or 2), Byte 1 = attribute (0 = TS0, LUT1).
+* Symmetric cell format: Byte 0 = Byte 1 = Tile Index (1 or 2).
+* Regardless of whether hardware reads Byte 0 or Byte 1 as Tile Index,
+* and whether it reads Byte 0 or Byte 1 as Attribute, the outcome is identical!
                     ldx       <matbase
-                    clr       <scratch            scratch = row (0..14)
-mrow@               clrb                          B = col (0..19)
+                    clr       <scratch            scratch = row (0..15)
+mrow@               clrb                          B = col (0..21)
 mcol@               lda       <scratch
                     pshs      b
                     adda      ,s+                 (row + col) & 1
@@ -217,8 +212,8 @@ mcol@               lda       <scratch
                     lda       #1                  Tile 1
                     bra       mst@
 use_t2@             lda       #2                  Tile 2
-mst@                sta       ,x+                 Byte 0: tile index
-                    clr       ,x+                 Byte 1: attr (TS0, LUT1)
+mst@                sta       ,x+                 Byte 0: Tile Index (1 or 2)
+                    sta       ,x+                 Byte 1: Tile Index (1 or 2) (Symmetric!)
                     incb
                     cmpb      #MAP_W
                     bne       mcol@
@@ -227,82 +222,66 @@ mst@                sta       ,x+                 Byte 0: tile index
                     cmpa      #MAP_H
                     bne       mrow@
 
-* Initial scroll positions
-                    ldd       #0
-                    std       scroll_x
-                    std       scroll_y
-
-* ---- 6. Load Graphics LUT1 in Page $C1 (Leave Shell LUT0 Alone!) ----
+* ---- 6. Load Graphics Palettes in Page $C1 ----
                     lbsr      MapVky
                     lda       #FONT_BLK           Block $C1
                     sta       >MAPSLOT
+
+* Save original Colors 1..4 (16 bytes) of CLUT 0
+                    ldx       #MAPADDR+GRPH_LUT0_OFF+4
+                    leay      save_clut0,u
+                    ldb       #16
+save_cl0@           lda       ,x+
+                    sta       ,y+
+                    decb
+                    bne       save_cl0@
+
+* Program Colors 1..4 in CLUT 0
+                    leax      tile_palette,pcr
+                    ldy       #MAPADDR+GRPH_LUT0_OFF+4
+                    ldb       #16
+set_cl0@            lda       ,x+
+                    sta       ,y+
+                    decb
+                    bne       set_cl0@
+
+* Ensure CLUT 1 Color 0 is transparent
                     ldx       #MAPADDR+GRPH_LUT1_OFF
-
-* Color 0: Transparent (Blue=0, Green=0, Red=0, Alpha=0)
                     clr       ,x+
                     clr       ,x+
                     clr       ,x+
                     clr       ,x+
 
-* Color 1: Bright Red Border (B=32, G=32, R=255, A=0)
-                    lda       #32
-                    sta       ,x+                 Blue
-                    sta       ,x+                 Green
-                    lda       #255
-                    sta       ,x+                 Red
-                    clr       ,x+                 Alpha
-
-* Color 2: Bright Cyan Interior (B=240, G=224, R=32, A=0)
-                    lda       #240
-                    sta       ,x+                 Blue
-                    lda       #224
-                    sta       ,x+                 Green
-                    lda       #32
-                    sta       ,x+                 Red
-                    clr       ,x+                 Alpha
-
-* Color 3: Bright Amber-Gold Lattice (B=32, G=200, R=255, A=0)
-                    lda       #32
-                    sta       ,x+                 Blue
-                    lda       #200
-                    sta       ,x+                 Green
-                    lda       #255
-                    sta       ,x+                 Red
-                    clr       ,x+                 Alpha
-
-* Color 4: Deep Navy Background (B=160, G=48, R=32, A=0)
-                    lda       #160
-                    sta       ,x+                 Blue
-                    lda       #48
-                    sta       ,x+                 Green
-                    lda       #32
-                    sta       ,x+                 Red
-                    clr       ,x+                 Alpha
-
-* Clear remaining 251 entries of LUT1
-                    ldy       #251*4/2
-clr_lut@            clr       ,x+
-                    clr       ,x+
-                    leay      -1,y
-                    bne       clr_lut@
+* Program Colors 1..4 in CLUT 1
+                    leax      tile_palette,pcr
+                    ldy       #MAPADDR+GRPH_LUT1_OFF+4
+                    ldb       #16
+set_cl1@            lda       ,x+
+                    sta       ,y+
+                    decb
+                    bne       set_cl1@
 
 * ---- 7. Configure Vicky Tile Registers in Page $C0 ----
                     lda       #SPRITE_BLK         Block $C0
                     sta       >MAPSLOT
 
-* Point Tile Set 0 ($1180) to tilebase (Little-Endian: L, M, H, CFG per wildbits.d)
+* Program ALL 8 Tile Sets (TS0..TS7: $1180 to $119F, 8 sets * 4 bytes = 32 bytes)
+* to tilebase address. Any hardware TS index 0..7 will point to our tiles!
                     ldx       #MAPADDR+$1180
-                    lda       <tile_phys_l
-                    sta       ,x                  TS0 Addr L ($1180)
+                    ldb       #8                  8 tile sets
+ts_loop@            lda       <tile_phys_l
+                    sta       ,x+                 TSn Addr L ($1180)
                     lda       <tile_phys_m
-                    sta       1,x                 TS0 Addr M ($1181)
+                    sta       ,x+                 TSn Addr M ($1181)
                     lda       <tile_phys_h
-                    sta       2,x                 TS0 Addr H ($1182)
-                    clr       3,x                 TS0 CFG ($1183, 0 = Linear)
+                    sta       ,x+                 TSn Addr H ($1182)
+                    clr       ,x+                 TSn CFG ($1183, 0 = Linear)
+                    decb
+                    bne       ts_loop@
 
-* Configure Tilemap 0 (TL0 at $1100): Enable=1, 16x16 (bit 4=0), LUT1 (bit 1=1)
+* Configure Tilemap 0 (TL0 at $1100): Enable=1, 16x16 (bit 4=0), default CLUT 0
                     ldx       #MAPADDR+$1100
-                    lda       #TILE_Enable+TILE_LUT0  $01 + $02 = $03 (LUT1)
+                    lda       #TILE_Enable        $01
                     sta       ,x                  TL0 CTRL ($1100)
                     lda       <mat_phys_l
                     sta       1,x                 TL0 Addr L ($1101)
@@ -311,7 +290,7 @@ clr_lut@            clr       ,x+
                     lda       <mat_phys_h
                     sta       3,x                 TL0 Addr H ($1103)
 
-* Map Size: 20x15 ($1104-$1107, Little-Endian: L, H per wildbits.d)
+* Map Size: 22x16 ($1104-$1107)
                     lda       #MAP_W
                     sta       4,x                 TL0 MAP_X_SIZE_L ($1104)
                     clr       5,x                 TL0 MAP_X_SIZE_H ($1105)
@@ -319,11 +298,15 @@ clr_lut@            clr       ,x+
                     sta       6,x                 TL0 MAP_Y_SIZE_L ($1106)
                     clr       7,x                 TL0 MAP_Y_SIZE_H ($1107)
 
-* Initial Scroll: (0, 0) ($1108-$110B, Little-Endian: L, H per wildbits.d)
+* Initial Scroll: (0, 0) ($1108-$110B)
                     clr       8,x                 TL0 MAP_X_POS_L ($1108)
                     clr       9,x                 TL0 MAP_X_POS_H ($1109)
                     clr       10,x                TL0 MAP_Y_POS_L ($110A)
                     clr       11,x                TL0 MAP_Y_POS_H ($110B)
+
+* Explicitly disable unused Tilemaps 1 ($110C) and 2 ($1118)
+                    clr       12,x                TL1 CTRL ($110C) = 0
+                    clr       24,x                TL2 CTRL ($1118) = 0
 
                     lbsr      UnMap
 
@@ -371,34 +354,21 @@ MainLoop            equ       *
                     beq       ScrollFrame
                     lbra      ExitClean
 
-* Update scroll coordinates
-ScrollFrame         ldd       scroll_x
-                    addd      #1
-                    cmpd      #MAP_W*TILE_SIZE_PX
-                    blt       ScrollXOk
-                    clra
-                    clrb
-ScrollXOk           std       scroll_x
+* Update scroll coordinates (smooth fine sub-tile scroll strictly 0..15)
+ScrollFrame         inc       <fine_scroll
+                    lda       <fine_scroll
+                    anda      #$0F                clamp to 0..15
+                    sta       <fine_scroll
 
-                    ldd       scroll_y
-                    addd      #1
-                    cmpd      #MAP_H*TILE_SIZE_PX
-                    blt       ScrollYOk
-                    clra
-                    clrb
-ScrollYOk           std       scroll_y
-
-* Update scroll registers in Page $C0 (Little-Endian: L, H per wildbits.d)
+* Update scroll registers in Page $C0
                     lbsr      MapVky
                     ldx       #MAPADDR+$1100
-                    lda       scroll_x+1
-                    sta       8,x                 TL0 MAP_X_POS_L ($1108)
-                    lda       scroll_x
-                    sta       9,x                 TL0 MAP_X_POS_H ($1109)
-                    lda       scroll_y+1
-                    sta       10,x                TL0 MAP_Y_POS_L ($110A)
-                    lda       scroll_y
-                    sta       11,x                TL0 MAP_Y_POS_H ($110B)
+                    lda       <fine_scroll
+                    sta       8,x                 TL0 MAP_X_POS_L ($1108) = fine_scroll (0..15)
+                    clr       9,x                 TL0 MAP_X_POS_H ($1109) = 0
+                    lda       <fine_scroll
+                    sta       10,x                TL0 MAP_Y_POS_L ($110A) = fine_scroll (0..15)
+                    clr       11,x                TL0 MAP_Y_POS_H ($110B) = 0
                     lbsr      UnMap
 
                     ldx       #2                  ~30 fps pacing
@@ -425,10 +395,24 @@ FlushKeys           clra                          path 0 (stdin)
                     bra       FlushKeys
 DoneFlush           equ       *
 
-* Disable Tilemap 0 in Page $C0
+* Disable Tilemaps in Page $C0
                     lbsr      MapVky
                     ldx       #MAPADDR+$1100
-                    clr       ,x                  TL0 disable
+                    clr       ,x                  TL0 disable ($1100)
+                    clr       12,x                TL1 disable ($110C)
+                    clr       24,x                TL2 disable ($1118)
+
+* Restore original CLUT 0 Colors 1..4 in Page $C1
+                    lda       #FONT_BLK           Block $C1
+                    sta       >MAPSLOT
+                    ldx       #MAPADDR+GRPH_LUT0_OFF+4
+                    leay      save_clut0,u
+                    ldb       #16
+rst_cl0@            lda       ,y+
+                    sta       ,x+
+                    decb
+                    bne       rst_cl0@
+
                     lbsr      UnMap
 
 * Clear layer controls
@@ -449,6 +433,32 @@ DoneFlush           equ       *
 
                     clrb                          Status 0 = Success
                     os9       F$Exit
+
+* ---- MakeTile1: Generate Cyan Box with Red Border at X ----
+* Preserves U. Modifies A, B, X, scratch.
+MakeTile1           clr       <scratch            scratch = row (0..15)
+row1@               clrb                          B = col (0..15)
+col1@               tst       <scratch            top edge?
+                    beq       border1@
+                    lda       <scratch
+                    cmpa      #15                 bottom edge?
+                    beq       border1@
+                    tstb                          left edge?
+                    beq       border1@
+                    cmpb      #15                 right edge?
+                    beq       border1@
+                    lda       #2                  Color 2: Cyan interior
+                    bra       pix1_st@
+border1@            lda       #1                  Color 1: Red border
+pix1_st@            sta       ,x+
+                    incb
+                    cmpb      #16
+                    bne       col1@
+                    inc       <scratch
+                    lda       <scratch
+                    cmpa      #16
+                    bne       row1@
+                    rts
 
 * ---- Signal Intercept Routine ----
 * Called by OS-9 kernel when a signal (e.g. S$Abort / ESC) arrives.
@@ -512,7 +522,7 @@ PhysAddr            pshs      x
                     puls      x                   restore X
                     rts
 
-* ---- MapVky: map Block $C0 into MAPSLOT ($A000) with IRQs masked
+* ---- MapVky: map Block $C0 into MAPSLOT ($6000) with IRQs masked
 MapVky              orcc      #IntMasks
                     lda       >MMU_MEM_CTRL
                     sta       <saveffa0
@@ -539,6 +549,12 @@ UnMap               lda       <saveslot
                     sta       >MMU_MEM_CTRL
                     andcc     #^IntMasks
                     rts
+
+* Palette definitions for Colors 1..4 (16 bytes, Blue, Green, Red, Alpha)
+tile_palette        fcb       32,32,255,0         Color 1: Bright Red Border
+                    fcb       240,224,32,0        Color 2: Bright Cyan Interior
+                    fcb       32,200,255,0        Color 3: Bright Amber-Gold Lattice
+                    fcb       160,48,32,0         Color 4: Deep Navy Background
 
                     emod
 eom                 equ       *
