@@ -5,28 +5,45 @@
 * engine on Wildbits Jr2 (FNX6809 core).
 *
 * Allocates and initializes:
-*  - Two 16x16 pixel tiles (tile 0 = empty/transparent, tile 1 = cyan box with
-*    red border, tile 2 = red box with grey lattice).
+*  - Two 16x16 pixel tiles in a page-aligned buffer in system SRAM
+*    (Tile 0 = transparent, Tile 1 = cyan box with red border,
+*     Tile 2 = navy box with gold diagonal lattice).
+*  - Dedicated 5-color palette loaded into GRPH_LUT1 (leaving shell
+*    palette in LUT0 undisturbed).
 *  - A 20x15 virtual tile matrix of 16-bit entries in system SRAM.
+*  - Dynamically calculates 24-bit physical addresses using the process's
+*    active MMU slot mapping.
 *  - Sets Tile Set 0 base address at $F180 (Page $C0 $1180).
 *  - Configures Tilemap 0 (TL0) at $F100 (Page $C0 $1100) with 20x15 dimensions.
 *  - Routes TL0 to Layer 0 via $FFC2 (bits 3:0 = 4).
 *  - Enables graphics + text overlay + tilemap ($FFC0 = $17).
-*  - Smoothly scrolls the playfield diagonally for ~5 seconds (or until key/ESC).
-*  - Catches signals (ESC/abort) via F$Icpt for a clean, error-free shutdown.
-*  - Restores all registers and exits cleanly to the NitrOS-9 shell.
+*  - Smoothly scrolls the playfield diagonally for ~10 seconds (or until key/ESC).
+*  - Catches signals (ESC/abort/break) via F$Icpt for a clean, error-free shutdown.
+*  - Restores all registers and exits cleanly to the NitrOS-9 text shell.
+*
+* Edt/Rev  YYYY/MM/DD  Modified by
+* ------------------------------------------------------------------
+*   1      2026/09/08  Antigravity
+* Created initial tilemap test.
+*   2      2026/09/20  Antigravity
+* Renamed and integrated into test suite.
+*   3      2026/09/23  Antigravity
+* Fixed logical buffer addressing (leax ,u instead of immediate #offset),
+* aligned tile buffer to 256-byte page boundary, switched palette from
+* LUT0 to LUT1 to preserve shell palette, fixed 24-bit PhysAddr translation
+* using active MMU slot register, and hardened clean exit with SS.DScrn.
 ********************************************************************
 
                     nam       tltest
                     ttl       TinyVicky Tilemap Test
 
                     ifp1
-                    use       os9.d
-                    use       wildbits.d
+                    use       defsfile
                     endc
 
-MAPSLOT             equ       MMU_SLOT_5          slot register we borrow ($A000)
+MAPSLOT             equ       MMU_SLOT_2          slot register we borrow ($4000)
 MAPADDR             equ       (MAPSLOT-MMU_SLOT_0)*$2000
+GRPH_LUT1_OFF       equ       GRPH_LUT0_OFF+$400  graphics LUT1 (LUTn at +$400*n)
 
 TILE_SIZE_PX        equ       16                  16x16 tiles
 TILE_BYTES          equ       TILE_SIZE_PX*TILE_SIZE_PX
@@ -38,7 +55,7 @@ AUTO_FRAMES         equ       300                 ~10 seconds at ~30 fps
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       2
+edition             set       6
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -47,16 +64,21 @@ saveffa0            rmb       1
 saveslot            rmb       1
 savemcr             rmb       1
 savelayer0          rmb       1
-blk0                rmb       1                   physical block of our process memory
 scroll_x            rmb       2
 scroll_y            rmb       2
 frames_left         rmb       2                   countdown to auto-exit
 sig_flag            rmb       1                   signal received flag
 scratch             rmb       1
-* Tile pixel data: Tile 0 (empty), Tile 1 (256 bytes), Tile 2 (256 bytes)
-tile0_pix           rmb       TILE_BYTES
-tile1_pix           rmb       TILE_BYTES
-tile2_pix           rmb       TILE_BYTES
+tilebase            rmb       2                   page-aligned logical base address of tile set
+matbase             rmb       2                   logical base address of tilemap matrix
+tile_phys_h         rmb       1
+tile_phys_m         rmb       1
+tile_phys_l         rmb       1
+mat_phys_h          rmb       1
+mat_phys_m          rmb       1
+mat_phys_l          rmb       1
+* Raw buffer for 3 tiles (3 * 256 = 768 bytes), page-aligned inside 1024 bytes
+tileraw             rmb       1024
 * Tilemap matrix (20x15 = 300 words = 600 bytes)
 map_matrix          rmb       MAP_CELLS*2
                     rmb       256                 stack
@@ -79,21 +101,61 @@ start               equ       *
                     ldy       #0                  0 bytes
                     os9       I$Write
 
-* Set auto-exit countdown (~5 seconds at ~30 fps)
+* Flush residual input from stdin before starting
+FlushInit           clra                          path 0 (stdin)
+                    ldb       #SS.Ready
+                    os9       I$GetStt
+                    bcs       FlushDone
+                    clra
+                    leax      <scratch,u
+                    ldy       #1
+                    os9       I$Read
+                    bcc       FlushInit
+FlushDone           equ       *
+
+* Set auto-exit countdown (~10 seconds at ~30 fps)
                     ldd       #AUTO_FRAMES
                     std       <frames_left
 
-* Clear Tile 0 pixels (16x16 transparent: all 0)
-                    ldx       #tile0_pix
-                    ldb       #0
-clr0@               clr       ,x+
-                    decb
+* ---- 1. Compute Page-Aligned Tile Base and Matrix Base ----
+* Align tile base to 256-byte page boundary inside tileraw
+                    leax      tileraw+255,u
+                    tfr       x,d
+                    clrb                          round down to page boundary (low byte = 0)
+                    std       <tilebase
+
+* Matrix base address
+                    leax      map_matrix,u
+                    stx       <matbase
+
+* Compute 24-bit physical addresses BEFORE mapping VRAM windows
+                    ldd       <tilebase
+                    lbsr      PhysAddr            returns A=H, B=M, scratch=L
+                    sta       <tile_phys_h
+                    stb       <tile_phys_m
+                    lda       <scratch
+                    sta       <tile_phys_l
+
+                    ldd       <matbase
+                    lbsr      PhysAddr
+                    sta       <mat_phys_h
+                    stb       <mat_phys_m
+                    lda       <scratch
+                    sta       <mat_phys_l
+
+* ---- 2. Initialize Tile 0 (16x16: Transparent: all 0) ----
+                    ldx       <tilebase
+                    ldd       #0
+                    ldy       #TILE_BYTES/2
+clr0@               std       ,x++
+                    leay      -1,y
                     bne       clr0@
 
-* ---- 1. Initialize Tile 1 pixels (16x16: Red border, Cyan interior) ----
-                    ldx       #tile1_pix
-                    clr       <scratch            scratch = row
-row1@               clrb                          B = col
+* ---- 3. Initialize Tile 1 (16x16: Red border = Color 1, Cyan interior = Color 2) ----
+                    ldx       <tilebase
+                    leax      TILE_BYTES,x        Tile 1 starts at +256
+                    clr       <scratch            scratch = row (0..15)
+row1@               clrb                          B = col (0..15)
 col1@               tst       <scratch            top edge?
                     beq       border1@
                     lda       <scratch
@@ -103,9 +165,9 @@ col1@               tst       <scratch            top edge?
                     beq       border1@
                     cmpb      #15                 right edge?
                     beq       border1@
-                    lda       #$FF                cyan interior
+                    lda       #2                  Color 2: Cyan interior
                     bra       pix1_st@
-border1@            lda       #$30                warm red border
+border1@            lda       #1                  Color 1: Red border
 pix1_st@            sta       ,x+
                     incb
                     cmpb      #16
@@ -115,10 +177,11 @@ pix1_st@            sta       ,x+
                     cmpa      #16
                     bne       row1@
 
-* ---- 2. Initialize Tile 2 pixels (16x16: Warm red lattice pattern) ----
-                    ldx       #tile2_pix
-                    clr       <scratch            scratch = row
-row2@               clrb                          B = col
+* ---- 4. Initialize Tile 2 (16x16: Gold diagonal lattice = Color 3, Navy bg = Color 4) ----
+                    ldx       <tilebase
+                    leax      TILE_BYTES*2,x      Tile 2 starts at +512
+                    clr       <scratch            scratch = row (0..15)
+row2@               clrb                          B = col (0..15)
 col2@               lda       <scratch
                     pshs      b
                     cmpa      ,s+                 row == col (main diagonal)?
@@ -128,9 +191,9 @@ col2@               lda       <scratch
                     adda      ,s+                 row + col == 15 (anti-diagonal)?
                     cmpa      #15
                     beq       diag2@
-                    lda       #$30                warm red background
+                    lda       #4                  Color 4: Navy background
                     bra       pix2_st@
-diag2@              lda       #$80                grey diagonal lattice
+diag2@              lda       #3                  Color 3: Gold lattice
 pix2_st@            sta       ,x+
                     incb
                     cmpb      #16
@@ -140,12 +203,12 @@ pix2_st@            sta       ,x+
                     cmpa      #16
                     bne       row2@
 
-* ---- 3. Fill the 20x15 Tilemap Matrix ----
-* Alternate Tile 1 and Tile 2 in a checkerboard pattern.
-* Each entry: Byte 0 = tile index, Byte 1 = attribute (0 = TS0, LUT0).
-                    ldx       #map_matrix
-                    clr       <scratch            scratch = row
-mrow@               clrb                          B = col
+* ---- 5. Fill the 20x15 Tilemap Matrix ----
+* Checkerboard alternation of Tile 1 and Tile 2.
+* Each cell: Byte 0 = tile index (1 or 2), Byte 1 = attribute (0 = TS0, LUT1).
+                    ldx       <matbase
+                    clr       <scratch            scratch = row (0..14)
+mrow@               clrb                          B = col (0..19)
 mcol@               lda       <scratch
                     pshs      b
                     adda      ,s+                 (row + col) & 1
@@ -155,7 +218,7 @@ mcol@               lda       <scratch
                     bra       mst@
 use_t2@             lda       #2                  Tile 2
 mst@                sta       ,x+                 Byte 0: tile index
-                    clr       ,x+                 Byte 1: attr (TS0, LUT0)
+                    clr       ,x+                 Byte 1: attr (TS0, LUT1)
                     incb
                     cmpb      #MAP_W
                     bne       mcol@
@@ -169,55 +232,83 @@ mst@                sta       ,x+                 Byte 0: tile index
                     std       scroll_x
                     std       scroll_y
 
-* ---- 4. Configure VICKY Page $C0 Registers ----
+* ---- 6. Load Graphics LUT1 in Page $C1 (Leave Shell LUT0 Alone!) ----
                     lbsr      MapVky
-                    lda       >MMU_SLOT_0         physical block of process
-                    sta       <blk0
-
-* Load graphics LUT0 with color ramp
                     lda       #FONT_BLK           Block $C1
                     sta       >MAPSLOT
-                    ldx       #MAPADDR+GRPH_LUT0_OFF
-                    clrb
-lut@                stb       ,x                  Blue  = index
-                    stb       1,x                 Green = index
-                    tfr       b,a
-                    coma
-                    sta       2,x                 Red   = 255-index
-                    clr       3,x                 Alpha
-                    leax      4,x
-                    incb
-                    bne       lut@
+                    ldx       #MAPADDR+GRPH_LUT1_OFF
 
-* Window back to Page $C0 (Block $C0)
+* Color 0: Transparent (Blue=0, Green=0, Red=0, Alpha=0)
+                    clr       ,x+
+                    clr       ,x+
+                    clr       ,x+
+                    clr       ,x+
+
+* Color 1: Bright Red Border (B=32, G=32, R=255, A=0)
+                    lda       #32
+                    sta       ,x+                 Blue
+                    sta       ,x+                 Green
+                    lda       #255
+                    sta       ,x+                 Red
+                    clr       ,x+                 Alpha
+
+* Color 2: Bright Cyan Interior (B=240, G=224, R=32, A=0)
+                    lda       #240
+                    sta       ,x+                 Blue
+                    lda       #224
+                    sta       ,x+                 Green
+                    lda       #32
+                    sta       ,x+                 Red
+                    clr       ,x+                 Alpha
+
+* Color 3: Bright Amber-Gold Lattice (B=32, G=200, R=255, A=0)
+                    lda       #32
+                    sta       ,x+                 Blue
+                    lda       #200
+                    sta       ,x+                 Green
+                    lda       #255
+                    sta       ,x+                 Red
+                    clr       ,x+                 Alpha
+
+* Color 4: Deep Navy Background (B=160, G=48, R=32, A=0)
+                    lda       #160
+                    sta       ,x+                 Blue
+                    lda       #48
+                    sta       ,x+                 Green
+                    lda       #32
+                    sta       ,x+                 Red
+                    clr       ,x+                 Alpha
+
+* Clear remaining 251 entries of LUT1
+                    ldy       #251*4/2
+clr_lut@            clr       ,x+
+                    clr       ,x+
+                    leay      -1,y
+                    bne       clr_lut@
+
+* ---- 7. Configure Vicky Tile Registers in Page $C0 ----
                     lda       #SPRITE_BLK         Block $C0
                     sta       >MAPSLOT
 
-* Point Tile Set 0 ($1180) to tile0_pix (Little-Endian: L, M, H, CFG per wildbits.d)
-                    ldd       #tile0_pix
-                    lbsr      PhysAddr            returns A=H, B=M, scratch=L
-                    pshs      a                   save H
+* Point Tile Set 0 ($1180) to tilebase (Little-Endian: L, M, H, CFG per wildbits.d)
                     ldx       #MAPADDR+$1180
-                    lda       <scratch
+                    lda       <tile_phys_l
                     sta       ,x                  TS0 Addr L ($1180)
-                    stb       1,x                 TS0 Addr M ($1181)
-                    puls      a
+                    lda       <tile_phys_m
+                    sta       1,x                 TS0 Addr M ($1181)
+                    lda       <tile_phys_h
                     sta       2,x                 TS0 Addr H ($1182)
                     clr       3,x                 TS0 CFG ($1183, 0 = Linear)
 
-* Configure Tilemap 0 (TL0 at $1100)
+* Configure Tilemap 0 (TL0 at $1100): Enable=1, 16x16 (bit 4=0), LUT1 (bit 1=1)
                     ldx       #MAPADDR+$1100
-                    lda       #$01                TILE_Enable=1, 16x16 (bit 4=0), LUT0
-                    sta       ,x
-
-* Map Matrix pointer ($1101-$1103, Little-Endian: L, M, H per wildbits.d)
-                    ldd       #map_matrix
-                    lbsr      PhysAddr
-                    pshs      a                   save H
-                    lda       <scratch
+                    lda       #TILE_Enable+TILE_LUT0  $01 + $02 = $03 (LUT1)
+                    sta       ,x                  TL0 CTRL ($1100)
+                    lda       <mat_phys_l
                     sta       1,x                 TL0 Addr L ($1101)
-                    stb       2,x                 TL0 Addr M ($1102)
-                    puls      a
+                    lda       <mat_phys_m
+                    sta       2,x                 TL0 Addr M ($1102)
+                    lda       <mat_phys_h
                     sta       3,x                 TL0 Addr H ($1103)
 
 * Map Size: 20x15 ($1104-$1107, Little-Endian: L, H per wildbits.d)
@@ -236,53 +327,66 @@ lut@                stb       ,x                  Blue  = index
 
                     lbsr      UnMap
 
-* ---- 5. Configure VICKY Master Video Registers ----
+* ---- 8. Configure VICKY Master Video Registers ----
                     ldy       #TXT.Base
-                    lda       VKY_LAYER_CTRL_0
+                    lda       VKY_LAYER_CTRL_L,y
                     sta       <savelayer0
                     anda      #$F0                preserve Layer 1
                     ora       #$04                Layer 0 Source = 4 (Tilemap 0)
-                    sta       VKY_LAYER_CTRL_0
+                    sta       VKY_LAYER_CTRL_L,y
 
                     lda       MASTER_CTRL_REG_L,y
                     sta       <savemcr
                     ora       #Mstr_Ctrl_Graph_Mode_En+Mstr_Ctrl_Text_Overlay+Mstr_Ctrl_TileMap_En
                     sta       MASTER_CTRL_REG_L,y
 
-* ---- 6. Scrolling Animation Loop ----
+* ---- 9. Scrolling Animation Loop ----
 MainLoop            equ       *
-* Check if signal was caught
+* Check if signal was caught (ESC / Ctrl-C)
                     tst       <sig_flag
                     lbne      ExitClean
 
-* Check auto-exit countdown (~5 seconds)
+* Check auto-exit countdown (~10 seconds)
                     ldd       <frames_left
                     subd      #1
                     std       <frames_left
                     lble      ExitClean
 
 * Poll stdin for keypress
-                    clra
+                    clra                          path 0 (stdin)
                     ldb       #SS.Ready
                     os9       I$GetStt
-                    lbcc      EatKeyAndExit
+                    bcs       ScrollFrame         no key pending -> continue scrolling
+
+* Key pending: consume it and filter out residual CR/LF
+                    clra
+                    leax      <scratch,u
+                    ldy       #1
+                    os9       I$Read
+                    bcs       ScrollFrame
+                    lda       <scratch
+                    cmpa      #C$CR
+                    beq       ScrollFrame
+                    cmpa      #C$LF
+                    beq       ScrollFrame
+                    lbra      ExitClean
 
 * Update scroll coordinates
-                    ldd       scroll_x
+ScrollFrame         ldd       scroll_x
                     addd      #1
                     cmpd      #MAP_W*TILE_SIZE_PX
-                    blt       sx_ok@
+                    blt       ScrollXOk
                     clra
                     clrb
-sx_ok@              std       scroll_x
+ScrollXOk           std       scroll_x
 
                     ldd       scroll_y
                     addd      #1
                     cmpd      #MAP_H*TILE_SIZE_PX
-                    blt       sy_ok@
+                    blt       ScrollYOk
                     clra
                     clrb
-sy_ok@              std       scroll_y
+ScrollYOk           std       scroll_y
 
 * Update scroll registers in Page $C0 (Little-Endian: L, H per wildbits.d)
                     lbsr      MapVky
@@ -302,9 +406,7 @@ sy_ok@              std       scroll_y
 
                     lbra      MainLoop
 
-EatKeyAndExit       equ       ExitClean
-
-* ---- 7. Clean Exit: restore registers and quit with status 0 ----
+* ---- 10. Clean Exit: restore registers and quit with status 0 ----
 ExitClean           equ       *
 * Remove signal intercept routine
                     ldx       #0
@@ -312,29 +414,38 @@ ExitClean           equ       *
                     os9       F$Icpt
 
 * Flush any pending keys from stdin so nothing leaks to shell
-flush@              clra
+FlushKeys           clra                          path 0 (stdin)
                     ldb       #SS.Ready
                     os9       I$GetStt
-                    bcs       fl_done@
+                    bcs       DoneFlush
                     clra
-                    ldx       #scratch
+                    leax      <scratch,u
                     ldy       #1
                     os9       I$Read
-                    bra       flush@
-fl_done@
+                    bra       FlushKeys
+DoneFlush           equ       *
 
-* Disable Tilemap 0
+* Disable Tilemap 0 in Page $C0
                     lbsr      MapVky
                     ldx       #MAPADDR+$1100
                     clr       ,x                  TL0 disable
                     lbsr      UnMap
 
-* Restore Layer 0 and Master Control
-                    lda       <savelayer0
-                    sta       VKY_LAYER_CTRL_0
+* Clear layer controls
                     ldy       #TXT.Base
-                    lda       <savemcr
+                    clr       VKY_LAYER_CTRL_L,y
+                    clr       VKY_LAYER_CTRL_H,y
+
+* Explicitly restore pure text mode in Vicky Master Control Register
+                    lda       #Mstr_Ctrl_Text_Mode_En
                     sta       MASTER_CTRL_REG_L,y
+
+* Notify vtio screen driver of text mode return
+                    ldx       #FX_TXT
+                    ldy       #FT_OMIT
+                    lda       #0
+                    ldb       #SS.DScrn
+                    os9       I$SetStt
 
                     clrb                          Status 0 = Success
                     os9       F$Exit
@@ -345,26 +456,60 @@ fl_done@
 SigHandler          stb       <sig_flag,u         record signal code
                     rti                           return to resume / wake up
 
-* ---- PhysAddr: D = process logical address (slot 0).
-* Returns A = phys 23:16, B = phys 15:8, scratch = phys 7:0.
-PhysAddr            pshs      d
-                    lda       <blk0
-                    lsra
-                    lsra
-                    lsra
-                    pshs      a                   phys 23:16
-                    lda       <blk0
+* ---- PhysAddr: D = process logical address
+* Queries MMU to translate D to 24-bit physical address.
+* Preserves X.
+* Returns A = Phys[23:16], B = Phys[15:8], scratch = Phys[7:0]
+PhysAddr            pshs      x
+                    stb       <scratch            scratch = Phys[7:0] (low byte)
+                    tfr       a,b
+                    lsrb
+                    lsrb
+                    lsrb
+                    lsrb
+                    lsrb                          B = slot index (0..7)
+                    anda      #$1F                A = Off_H & $1F
+                    pshs      d                   stack: 0,s=A (Off_H & $1F), 1,s=B (slot), 2,s=X_H, 3,s=X_L
+
+* Query MMU for active physical block of slot B
+                    orcc      #IntMasks
+                    lda       >MMU_MEM_CTRL
+                    sta       <saveffa0
+                    tfr       a,b
+                    andb      #$03                active map (bits 1:0)
+                    lslb
+                    lslb
+                    lslb
+                    lslb
+                    anda      #$CF                clear edit bits
+                    pshs      b
+                    ora       ,s+
+                    sta       >MMU_MEM_CTRL       edit = active
+
+                    ldb       1,s                 B = slot index (0..7)
+                    ldx       #MMU_SLOT_0
+                    lda       b,x                 A = physical 8KB block number
+
+                    ldb       <saveffa0
+                    stb       >MMU_MEM_CTRL       restore original MMU_MEM_CTRL
+                    andcc     #^IntMasks
+
+* Now A = physical block number
+* Compute Phys[23:16] = block >> 3
+                    tfr       a,b
+                    lsrb
+                    lsrb
+                    lsrb                          B = block >> 3 (Phys[23:16])
+* Compute Phys[15:8] = (block << 5) | (Off_H & $1F)
                     asla
                     asla
                     asla
                     asla
-                    asla
-                    ora       1,s                 | (offset >> 8)
-                    tfr       a,b                 B = phys 15:8
-                    lda       2,s                 A = offset low byte
-                    sta       <scratch
-                    puls      a                   A = phys 23:16
-                    leas      2,s                 clean stack
+                    asla                          A = block << 5
+                    ora       ,s                  A = (block << 5) | (Off_H & $1F) (Phys[15:8])
+                    exg       a,b                 A = Phys[23:16], B = Phys[15:8]
+                    leas      2,s                 pop saved D
+                    puls      x                   restore X
                     rts
 
 * ---- MapVky: map Block $C0 into MAPSLOT ($A000) with IRQs masked

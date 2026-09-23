@@ -60,6 +60,11 @@
 *   9      2026/09/20  Antigravity
 * Renamed to sprtest to adhere to *test naming convention while preserving
 * full 128 bouncing sprites engine animation demo.
+*  12      2026/09/23  Antigravity
+* Added signal intercept (F$Icpt) and terminal ownership to guarantee clean
+* exit on ESC / Ctrl-C; unconditionally hides all 128 hardware sprites and
+* restores authentic text mode via Vicky MCR and SS.DScrn. Moved MAPSLOT to
+* MMU_SLOT_3 ($6000) to isolate from 17.5KB user process data and stack.
 
                     nam       sprtest
                     ttl       128 bouncing sprites
@@ -68,7 +73,7 @@
                     use       defsfile
                     endc
 
-MAPSLOT             equ       MMU_SLOT_5          slot register we borrow
+MAPSLOT             equ       MMU_SLOT_3          slot register we borrow ($6000)
 MAPADDR             equ       (MAPSLOT-MMU_SLOT_0)*$2000 its CPU window
 GRPH_LUT1_OFF       equ       GRPH_LUT0_OFF+$400  graphics LUT1 (LUTn at +$400*n)
 
@@ -83,7 +88,7 @@ YMAX                equ       32+240-SPRSIZE      bottommost fully-visible Y
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       9
+edition             set       12
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -95,7 +100,8 @@ pixblk              rmb       1                   physical block of the bitmap b
 pixbase             rmb       2                   its logical address (8K-aligned inside pixraw)
 scratch             rmb       1
 tmp                 rmb       1                   LUT sweep: n-1 = %0RRGGGBB
-sprcnt                rmb       1                   sprites in use this run (1..NSPR)
+sprcnt              rmb       1                   sprites in use this run (1..NSPR)
+sig_flag            rmb       1                   signal caught flag
 * per-sprite state blocks: x(2), y(2), dx(1), dy(1)
 st                  rmb       NSPR*6
 * 16 KB raw area: the first 8K boundary inside it is where the 128 bitmaps go
@@ -107,6 +113,31 @@ name                fcs       /sprtest/
                     fcb       edition
 
 start               equ       *
+* ---- Set up Signal Intercept Handler (F$Icpt) ----
+                    clr       <sig_flag
+                    leax      SigHandler,pcr      pointer to signal intercept handler
+                    os9       F$Icpt              register handler (U points to data area)
+
+* Acquire terminal device ownership so keydrv_ps2 directs signals (ESC/Ctrl-C) to us
+                    clra                          path 0 (stdin)
+                    ldy       #0                  0 bytes
+                    os9       I$Read
+                    lda       #1                  path 1 (stdout)
+                    ldy       #0                  0 bytes
+                    os9       I$Write
+
+* Flush residual input from stdin before starting
+FlushInit           clra                          path 0 (stdin)
+                    ldb       #SS.Ready
+                    os9       I$GetStt
+                    bcs       FlushDone
+                    clra
+                    leax      <scratch,u
+                    ldy       #1
+                    os9       I$Read
+                    bcc       FlushInit
+FlushDone           equ       *
+
 * Optional decimal count 1..128 on the command line (X = parameters, D = their length incl. CR)
                     pshs      x
                     ldb       #NSPR
@@ -329,7 +360,11 @@ RecLoop             lda       #SPRITE_Ctrl_Enable+SPRITE_LUT0+SPRITE_SIZE0+SPRIT
                     sta       MASTER_CTRL_REG_L,y
 
 * ---- Animation loop: bounce all 128, post the positions, sleep, poll a key ----
-MainLoop            ldx       #st
+* ---- Animation loop: bounce all 128, post the positions, sleep, poll a key ----
+MainLoop            tst       <sig_flag           signal caught (ESC / Ctrl-C)?
+                    lbne      ExitClean
+
+                    ldx       #st
                     ldb       <sprcnt
 BounceAll           pshs      b
                     lbsr      Bounce
@@ -356,29 +391,75 @@ PostAll             ldd       ,u
                     ldx       #2                  ~30fps
                     os9       F$Sleep
 
-                    clra                          stdin
+                    clra                          path 0 (stdin)
                     ldb       #SS.Ready
                     os9       I$GetStt
                     bcs       MainLoop            nothing typed: keep bouncing
 
-* Key pressed: consume it, hide every sprite, restore the screen
+* Key pending: consume it and filter out residual CR/LF
                     clra
-                    ldx       #scratch
+                    leax      <scratch,u
                     ldy       #1
                     os9       I$Read
+                    bcs       MainLoop
+                    lda       <scratch
+                    cmpa      #C$CR
+                    beq       MainLoop
+                    cmpa      #C$LF
+                    beq       MainLoop
+                    lbra      ExitClean
+
+* ---- Clean Exit: Unregister signal, flush keys, hide ALL 128 sprites, restore text mode ----
+ExitClean           equ       *
+* Remove signal intercept
+                    ldx       #0
+                    ldu       #0
+                    os9       F$Icpt
+
+* Drain any pending keys from stdin
+FlushKeys           clra                          path 0 (stdin)
+                    ldb       #SS.Ready
+                    os9       I$GetStt
+                    bcs       DoneFlush
+                    clra
+                    leax      <scratch,u
+                    ldy       #1
+                    os9       I$Read
+                    bra       FlushKeys
+DoneFlush           equ       *
+
+* Unconditionally hide ALL 128 hardware sprites in Vicky records
                     lbsr      MapSpr
                     ldx       #MAPADDR+SPRITE_REC_OFF
-                    ldb       <sprcnt
+                    ldb       #NSPR
 HideAll             clr       SPR_CTRL,x
                     leax      SPR_REC_SIZE,x
                     decb
                     bne       HideAll
                     lbsr      UnMap
+
+* Clear layer controls
                     ldy       #TXT.Base
-                    lda       <savemcr
+                    clr       VKY_LAYER_CTRL_L,y
+                    clr       VKY_LAYER_CTRL_H,y
+
+* Explicitly restore pure text mode in Vicky Master Control Register
+                    lda       #Mstr_Ctrl_Text_Mode_En
                     sta       MASTER_CTRL_REG_L,y
-                    clrb
+
+* Notify vtio screen driver of text mode return
+                    ldx       #FX_TXT
+                    ldy       #FT_OMIT
+                    lda       #0
+                    ldb       #SS.DScrn
+                    os9       I$SetStt
+
+                    clrb                          status 0 = success
 ExitErr             os9       F$Exit
+
+* ---- Signal Intercept Routine ----
+SigHandler          stb       <sig_flag,u
+                    rti
 
 * ---- Bounce: X -> state {x(2), y(2), dx(1), dy(1)}: step and reflect.
 Bounce              ldb       4,x                 dx
