@@ -44,6 +44,10 @@
 * Tile 0 with valid graphic pattern, clamped fine scroll strictly to 0..15,
 * dual-loaded palettes to CLUT 0 & 1 with CLUT 0 preservation/restore, and
 * explicitly disabled unused Tilemaps 1 & 2.
+*   8      2026/09/23  Antigravity
+* Switched TS0..TS7 and TL0 address registers to Big-Endian (H, M, L),
+* resolving the hardware static/tearing issue where Little-Endian writes
+* caused the FPGA to fetch from 0x00C007 (Kernel RAM) instead of 0x07C000.
 ********************************************************************
 
                     nam       tltest
@@ -67,7 +71,7 @@ AUTO_FRAMES         equ       300                 ~10 seconds at ~30 fps
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       7
+edition             set       8
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -266,29 +270,31 @@ set_cl1@            lda       ,x+
                     sta       >MAPSLOT
 
 * Program ALL 8 Tile Sets (TS0..TS7: $1180 to $119F, 8 sets * 4 bytes = 32 bytes)
-* to tilebase address. Any hardware TS index 0..7 will point to our tiles!
+* to tilebase address. Hardware registers on FNX6809 are Big-Endian:
+* Offset 0 = H, Offset 1 = M, Offset 2 = L, Offset 3 = CFG.
                     ldx       #MAPADDR+$1180
                     ldb       #8                  8 tile sets
-ts_loop@            lda       <tile_phys_l
-                    sta       ,x+                 TSn Addr L ($1180)
+ts_loop@            lda       <tile_phys_h
+                    sta       ,x+                 TSn Addr H ($1180)
                     lda       <tile_phys_m
                     sta       ,x+                 TSn Addr M ($1181)
-                    lda       <tile_phys_h
-                    sta       ,x+                 TSn Addr H ($1182)
+                    lda       <tile_phys_l
+                    sta       ,x+                 TSn Addr L ($1182)
                     clr       ,x+                 TSn CFG ($1183, 0 = Linear)
                     decb
                     bne       ts_loop@
 
 * Configure Tilemap 0 (TL0 at $1100): Enable=1, 16x16 (bit 4=0), default CLUT 0
+* Address registers are Big-Endian: Offset 1 = H, Offset 2 = M, Offset 3 = L.
                     ldx       #MAPADDR+$1100
                     lda       #TILE_Enable        $01
                     sta       ,x                  TL0 CTRL ($1100)
-                    lda       <mat_phys_l
-                    sta       1,x                 TL0 Addr L ($1101)
+                    lda       <mat_phys_h
+                    sta       1,x                 TL0 Addr H ($1101)
                     lda       <mat_phys_m
                     sta       2,x                 TL0 Addr M ($1102)
-                    lda       <mat_phys_h
-                    sta       3,x                 TL0 Addr H ($1103)
+                    lda       <mat_phys_l
+                    sta       3,x                 TL0 Addr L ($1103)
 
 * Map Size: 22x16 ($1104-$1107)
                     lda       #MAP_W
