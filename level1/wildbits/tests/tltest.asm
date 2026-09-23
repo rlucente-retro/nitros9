@@ -55,6 +55,11 @@
 * the FPGA to jump by 256 pixels (16 whole tiles) into uninitialized RAM every
 * frame, producing the flashing dots/static captured in video.
 * Also zero-cleared the entire tileraw and matraw buffers.
+*   10     2026/09/23  Antigravity
+* Switched MAP_X_SIZE ($1104-$1105) and MAP_Y_SIZE ($1106-$1107) to Big-Endian
+* (H, L via STD). In Edition 9, MAP_X_SIZE was stored Little-Endian (22 at $1104,
+* 0 at $1105), which the FPGA decoded as 5632 tiles per row, making Row 0 solid
+* but displacing Rows 1..15 into uninitialized RAM 11KB away.
 ********************************************************************
 
                     nam       tltest
@@ -78,7 +83,7 @@ AUTO_FRAMES         equ       300                 ~10 seconds at ~30 fps
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       9
+edition             set       10
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -311,19 +316,16 @@ ts_loop@            lda       <tile_phys_h
                     lda       <mat_phys_l
                     sta       3,x                 TL0 Addr L ($1103)
 
-* Map Size: 22x16 ($1104-$1107)
-                    lda       #MAP_W
-                    sta       4,x                 TL0 MAP_X_SIZE_L ($1104)
-                    clr       5,x                 TL0 MAP_X_SIZE_H ($1105)
-                    lda       #MAP_H
-                    sta       6,x                 TL0 MAP_Y_SIZE_L ($1106)
-                    clr       7,x                 TL0 MAP_Y_SIZE_H ($1107)
+* Map Size: 22x16 ($1104-$1107) - Big-Endian (H, L via STD)
+                    ldd       #MAP_W
+                    std       4,x                 TL0 MAP_X_SIZE (H=0 at $1104, L=22 at $1105)
+                    ldd       #MAP_H
+                    std       6,x                 TL0 MAP_Y_SIZE (H=0 at $1106, L=16 at $1107)
 
-* Initial Scroll: (0, 0) ($1108-$110B)
-                    clr       8,x                 TL0 MAP_X_POS_H ($1108) = 0
-                    clr       9,x                 TL0 MAP_X_POS_L ($1109) = 0
-                    clr       10,x                TL0 MAP_Y_POS_H ($110A) = 0
-                    clr       11,x                TL0 MAP_Y_POS_L ($110B) = 0
+* Initial Scroll: (0, 0) ($1108-$110B) - Big-Endian (H, L via STD)
+                    ldd       #0
+                    std       8,x                 TL0 MAP_X_POS (H=0 at $1108, L=0 at $1109)
+                    std       10,x                TL0 MAP_Y_POS (H=0 at $110A, L=0 at $110B)
 
 * Explicitly disable unused Tilemaps 1 ($110C) and 2 ($1118)
                     clr       12,x                TL1 CTRL ($110C) = 0
@@ -381,20 +383,13 @@ ScrollFrame         inc       <fine_scroll
                     anda      #$0F                clamp to 0..15 pixels
                     sta       <fine_scroll
 
-* Update scroll registers in Page $C0
-* Register layout on FNX6809 (Big-Endian):
-* Offset 8  ($1108): MAP_X_POS_H = X[9..4] = 0
-* Offset 9  ($1109): MAP_X_POS_L = X[3..0]:SSX[3..0] = fine_scroll (0..15)
-* Offset 10 ($110A): MAP_Y_POS_H = Y[7..4] = 0
-* Offset 11 ($110B): MAP_Y_POS_L = Y[3..0]:SSY[3..0] = fine_scroll (0..15)
+* Update scroll registers in Page $C0 - Big-Endian (H, L via STD)
                     lbsr      MapVky
                     ldx       #MAPADDR+$1100
-                    clr       8,x                 TL0 MAP_X_POS_H ($1108) = 0
-                    lda       <fine_scroll
-                    sta       9,x                 TL0 MAP_X_POS_L ($1109) = fine_scroll (0..15)
-                    clr       10,x                TL0 MAP_Y_POS_H ($110A) = 0
-                    lda       <fine_scroll
-                    sta       11,x                TL0 MAP_Y_POS_L ($110B) = fine_scroll (0..15)
+                    clra
+                    ldb       <fine_scroll
+                    std       8,x                 TL0 MAP_X_POS (H=0 at $1108, L=fine_scroll at $1109)
+                    std       10,x                TL0 MAP_Y_POS (H=0 at $110A, L=fine_scroll at $110B)
                     lbsr      UnMap
 
                     ldx       #2                  ~30 fps pacing
