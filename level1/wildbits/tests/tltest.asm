@@ -60,6 +60,11 @@
 * (H, L via STD). In Edition 9, MAP_X_SIZE was stored Little-Endian (22 at $1104,
 * 0 at $1105), which the FPGA decoded as 5632 tiles per row, making Row 0 solid
 * but displacing Rows 1..15 into uninitialized RAM 11KB away.
+*   11     2026/09/23  Antigravity
+* Tuned for high-contrast checkerboard: Tile 1 = Brilliant White (Color 2) with
+* Vivid Red border (Color 1); Tile 2 = Jet Black (Color 4) with Bright Amber-Gold
+* border and center pip (Color 3). Tile 0 = transparent. Matrix cells set canonical
+* Byte 0 = Tile Index (1 or 2), Byte 1 = Attribute 0 (TS0, CLUT0).
 ********************************************************************
 
                     nam       tltest
@@ -83,7 +88,7 @@ AUTO_FRAMES         equ       300                 ~10 seconds at ~30 fps
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       10
+edition             set       11
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -185,46 +190,29 @@ clr_raw@            clr       ,x+
                     lda       <scratch
                     sta       <mat_phys_l
 
-* ---- 2. Initialize Tile 0 (Populated with Tile 1 Pattern for Non-Transparent Fallback) ----
+* ---- 2. Initialize Tile 0 (Transparent / Empty: all 0) ----
                     ldx       <tilebase
-                    lbsr      MakeTile1
+                    ldy       #TILE_BYTES/2       128 words = 256 bytes
+clr0@               clr       ,x+
+                    clr       ,x+
+                    leay      -1,y
+                    bne       clr0@
 
-* ---- 3. Initialize Tile 1 (16x16: Red border = Color 1, Cyan interior = Color 2) ----
+* ---- 3. Initialize Tile 1 (16x16: Red border = Color 1, White interior = Color 2) ----
                     ldx       <tilebase
                     leax      TILE_BYTES,x        Tile 1 starts at +256
                     lbsr      MakeTile1
 
-* ---- 4. Initialize Tile 2 (16x16: Gold diagonal lattice = Color 3, Navy bg = Color 4) ----
+* ---- 4. Initialize Tile 2 (16x16: Gold border = Color 3, Black interior = Color 4, Gold pip = Color 3) ----
                     ldx       <tilebase
                     leax      TILE_BYTES*2,x      Tile 2 starts at +512
-                    clr       <scratch            scratch = row (0..15)
-row2@               clrb                          B = col (0..15)
-col2@               lda       <scratch
-                    pshs      b
-                    cmpa      ,s+                 row == col (main diagonal)?
-                    beq       diag2@
-                    lda       <scratch
-                    pshs      b
-                    adda      ,s+                 row + col == 15 (anti-diagonal)?
-                    cmpa      #15
-                    beq       diag2@
-                    lda       #4                  Color 4: Navy background
-                    bra       pix2_st@
-diag2@              lda       #3                  Color 3: Gold lattice
-pix2_st@            sta       ,x+
-                    incb
-                    cmpb      #16
-                    bne       col2@
-                    inc       <scratch
-                    lda       <scratch
-                    cmpa      #16
-                    bne       row2@
+                    lbsr      MakeTile2
 
 * ---- 5. Fill the 22x16 Tilemap Matrix ----
-* Checkerboard alternation of Tile 1 and Tile 2.
-* Symmetric cell format: Byte 0 = Byte 1 = Tile Index (1 or 2).
-* Regardless of whether hardware reads Byte 0 or Byte 1 as Tile Index,
-* and whether it reads Byte 0 or Byte 1 as Attribute, the outcome is identical!
+* High-contrast checkerboard alternation of Tile 1 (White) and Tile 2 (Black).
+* Canonical Vicky II cell format:
+*   Byte 0 = Tile Index (1 for White/Red, 2 for Black/Gold)
+*   Byte 1 = Attribute = 0 (TS0, CLUT0, no flips)
                     ldx       <matbase
                     clr       <scratch            scratch = row (0..15)
 mrow@               clrb                          B = col (0..21)
@@ -233,11 +221,11 @@ mcol@               lda       <scratch
                     adda      ,s+                 (row + col) & 1
                     anda      #1
                     bne       use_t2@
-                    lda       #1                  Tile 1
+                    lda       #1                  Tile 1 (White)
                     bra       mst@
-use_t2@             lda       #2                  Tile 2
+use_t2@             lda       #2                  Tile 2 (Black)
 mst@                sta       ,x+                 Byte 0: Tile Index (1 or 2)
-                    sta       ,x+                 Byte 1: Tile Index (1 or 2) (Symmetric!)
+                    clr       ,x+                 Byte 1: Attribute (0 = TS0, CLUT0)
                     incb
                     cmpb      #MAP_W
                     bne       mcol@
@@ -455,7 +443,7 @@ rst_cl0@            lda       ,y+
                     clrb                          Status 0 = Success
                     os9       F$Exit
 
-* ---- MakeTile1: Generate Cyan Box with Red Border at X ----
+* ---- MakeTile1: Generate White Box with Red Border at X ----
 * Preserves U. Modifies A, B, X, scratch.
 MakeTile1           clr       <scratch            scratch = row (0..15)
 row1@               clrb                          B = col (0..15)
@@ -468,9 +456,9 @@ col1@               tst       <scratch            top edge?
                     beq       border1@
                     cmpb      #15                 right edge?
                     beq       border1@
-                    lda       #2                  Color 2: Cyan interior
+                    lda       #2                  Color 2: Brilliant White interior
                     bra       pix1_st@
-border1@            lda       #1                  Color 1: Red border
+border1@            lda       #1                  Color 1: Bright Red border
 pix1_st@            sta       ,x+
                     incb
                     cmpb      #16
@@ -479,6 +467,44 @@ pix1_st@            sta       ,x+
                     lda       <scratch
                     cmpa      #16
                     bne       row1@
+                    rts
+
+* ---- MakeTile2: Generate Black Box with Gold Border and Pip at X ----
+* Preserves U. Modifies A, B, X, scratch.
+MakeTile2           clr       <scratch            scratch = row (0..15)
+row2@               clrb                          B = col (0..15)
+col2@               tst       <scratch            top edge?
+                    beq       border2@
+                    lda       <scratch
+                    cmpa      #15                 bottom edge?
+                    beq       border2@
+                    tstb                          left edge?
+                    beq       border2@
+                    cmpb      #15                 right edge?
+                    beq       border2@
+* Center 4x4 pip: rows 6..9, cols 6..9
+                    lda       <scratch
+                    cmpa      #6
+                    blo       bg2@
+                    cmpa      #9
+                    bhi       bg2@
+                    cmpb      #6
+                    blo       bg2@
+                    cmpb      #9
+                    bhi       bg2@
+                    lda       #3                  Color 3: Amber-Gold center pip
+                    bra       pix2_st@
+bg2@                lda       #4                  Color 4: Jet Black interior
+                    bra       pix2_st@
+border2@            lda       #3                  Color 3: Amber-Gold border
+pix2_st@            sta       ,x+
+                    incb
+                    cmpb      #16
+                    bne       col2@
+                    inc       <scratch
+                    lda       <scratch
+                    cmpa      #16
+                    bne       row2@
                     rts
 
 * ---- Signal Intercept Routine ----
@@ -572,10 +598,10 @@ UnMap               lda       <saveslot
                     rts
 
 * Palette definitions for Colors 1..4 (16 bytes, Blue, Green, Red, Alpha)
-tile_palette        fcb       32,32,255,0         Color 1: Bright Red Border
-                    fcb       240,224,32,0        Color 2: Bright Cyan Interior
-                    fcb       32,200,255,0        Color 3: Bright Amber-Gold Lattice
-                    fcb       160,48,32,0         Color 4: Deep Navy Background
+tile_palette        fcb       32,32,255,0         Color 1: Bright Vivid Red (Tile 1 Border)
+                    fcb       255,255,255,0       Color 2: Brilliant Pure White (Tile 1 Interior)
+                    fcb       0,215,255,0         Color 3: Bright Amber-Gold (Tile 2 Border & Pip)
+                    fcb       1,1,1,0             Color 4: Solid Jet Black (Tile 2 Interior)
 
                     emod
 eom                 equ       *
