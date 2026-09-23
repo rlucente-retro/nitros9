@@ -48,6 +48,13 @@
 * Switched TS0..TS7 and TL0 address registers to Big-Endian (H, M, L),
 * resolving the hardware static/tearing issue where Little-Endian writes
 * caused the FPGA to fetch from 0x00C007 (Kernel RAM) instead of 0x07C000.
+*   9      2026/09/23  Antigravity
+* Switched scroll registers to Big-Endian: Offset 8 ($1108)=H, Offset 9 ($1109)=L
+* for X scroll, Offset 10 ($110A)=H, Offset 11 ($110B)=L for Y scroll.
+* In Edition 8, fine_scroll was stored in the High byte ($1108/$110A), causing
+* the FPGA to jump by 256 pixels (16 whole tiles) into uninitialized RAM every
+* frame, producing the flashing dots/static captured in video.
+* Also zero-cleared the entire tileraw and matraw buffers.
 ********************************************************************
 
                     nam       tltest
@@ -71,7 +78,7 @@ AUTO_FRAMES         equ       300                 ~10 seconds at ~30 fps
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       8
+edition             set       9
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -133,6 +140,14 @@ FlushDone           equ       *
                     ldd       #AUTO_FRAMES
                     std       <frames_left
                     clr       <fine_scroll
+
+* Clear all 2048 bytes of raw buffers (tileraw + matraw) to prevent random memory leaks
+                    leax      tileraw,u
+                    ldy       #2048/2
+clr_raw@            clr       ,x+
+                    clr       ,x+
+                    leay      -1,y
+                    bne       clr_raw@
 
 * ---- 1. Compute Page-Aligned Tile Base and Matrix Base ----
 * Align tile base to 256-byte page boundary inside tileraw
@@ -305,10 +320,10 @@ ts_loop@            lda       <tile_phys_h
                     clr       7,x                 TL0 MAP_Y_SIZE_H ($1107)
 
 * Initial Scroll: (0, 0) ($1108-$110B)
-                    clr       8,x                 TL0 MAP_X_POS_L ($1108)
-                    clr       9,x                 TL0 MAP_X_POS_H ($1109)
-                    clr       10,x                TL0 MAP_Y_POS_L ($110A)
-                    clr       11,x                TL0 MAP_Y_POS_H ($110B)
+                    clr       8,x                 TL0 MAP_X_POS_H ($1108) = 0
+                    clr       9,x                 TL0 MAP_X_POS_L ($1109) = 0
+                    clr       10,x                TL0 MAP_Y_POS_H ($110A) = 0
+                    clr       11,x                TL0 MAP_Y_POS_L ($110B) = 0
 
 * Explicitly disable unused Tilemaps 1 ($110C) and 2 ($1118)
                     clr       12,x                TL1 CTRL ($110C) = 0
@@ -363,18 +378,23 @@ MainLoop            equ       *
 * Update scroll coordinates (smooth fine sub-tile scroll strictly 0..15)
 ScrollFrame         inc       <fine_scroll
                     lda       <fine_scroll
-                    anda      #$0F                clamp to 0..15
+                    anda      #$0F                clamp to 0..15 pixels
                     sta       <fine_scroll
 
 * Update scroll registers in Page $C0
+* Register layout on FNX6809 (Big-Endian):
+* Offset 8  ($1108): MAP_X_POS_H = X[9..4] = 0
+* Offset 9  ($1109): MAP_X_POS_L = X[3..0]:SSX[3..0] = fine_scroll (0..15)
+* Offset 10 ($110A): MAP_Y_POS_H = Y[7..4] = 0
+* Offset 11 ($110B): MAP_Y_POS_L = Y[3..0]:SSY[3..0] = fine_scroll (0..15)
                     lbsr      MapVky
                     ldx       #MAPADDR+$1100
+                    clr       8,x                 TL0 MAP_X_POS_H ($1108) = 0
                     lda       <fine_scroll
-                    sta       8,x                 TL0 MAP_X_POS_L ($1108) = fine_scroll (0..15)
-                    clr       9,x                 TL0 MAP_X_POS_H ($1109) = 0
+                    sta       9,x                 TL0 MAP_X_POS_L ($1109) = fine_scroll (0..15)
+                    clr       10,x                TL0 MAP_Y_POS_H ($110A) = 0
                     lda       <fine_scroll
-                    sta       10,x                TL0 MAP_Y_POS_L ($110A) = fine_scroll (0..15)
-                    clr       11,x                TL0 MAP_Y_POS_H ($110B) = 0
+                    sta       11,x                TL0 MAP_Y_POS_L ($110B) = fine_scroll (0..15)
                     lbsr      UnMap
 
                     ldx       #2                  ~30 fps pacing
