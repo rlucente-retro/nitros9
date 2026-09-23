@@ -88,7 +88,7 @@ AUTO_FRAMES         equ       300                 ~10 seconds at ~30 fps
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       12
+edition             set       13
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -110,7 +110,7 @@ tile_phys_l         rmb       1
 mat_phys_h          rmb       1
 mat_phys_m          rmb       1
 mat_phys_l          rmb       1
-save_clut0          rmb       16                  saved original CLUT 0 entries 1..4 (16 bytes)
+save_clut0          rmb       24                  saved original CLUT 0 entries 1..6 (24 bytes)
 * Raw buffer for 3 tiles (3 * 256 = 768 bytes), page-aligned inside 1024 bytes
 tileraw             rmb       1024
 * Raw buffer for tilemap matrix (22x16 = 352 cells * 2 = 704 bytes), page-aligned inside 1024 bytes
@@ -192,20 +192,16 @@ clr_raw@            clr       ,x+
                     lda       <scratch
                     sta       <mat_phys_l
 
-* ---- 2. Initialize Tile 0 (Transparent / Empty: all 0) ----
+* ---- 2. Initialize Tile 0 (16x16: Magenta border = Color 6, Emerald Green interior = Color 5) ----
                     ldx       <tilebase
-                    ldy       #TILE_BYTES/2       128 words = 256 bytes
-clr0@               clr       ,x+
-                    clr       ,x+
-                    leay      -1,y
-                    bne       clr0@
+                    lbsr      MakeTile0
 
 * ---- 3. Initialize Tile 1 (16x16: Red border = Color 1, White interior = Color 2) ----
                     ldx       <tilebase
                     leax      TILE_BYTES,x        Tile 1 starts at +256
                     lbsr      MakeTile1
 
-* ---- 4. Initialize Tile 2 (16x16: Gold border = Color 3, Black interior = Color 4, Gold pip = Color 3) ----
+* ---- 4. Initialize Tile 2 (16x16: Yellow border = Color 3, Blue interior = Color 4, Yellow pip = Color 3) ----
                     ldx       <tilebase
                     leax      TILE_BYTES*2,x      Tile 2 starts at +512
                     lbsr      MakeTile2
@@ -241,19 +237,19 @@ mst@                sta       ,x+                 Byte 0: Tile Index (1 or 2)
                     lda       #FONT_BLK           Block $C1
                     sta       >MAPSLOT
 
-* Save original Colors 1..4 (16 bytes) of CLUT 0
+* Save original Colors 1..6 (24 bytes) of CLUT 0
                     ldx       #MAPADDR+GRPH_LUT0_OFF+4
                     leay      save_clut0,u
-                    ldb       #16
+                    ldb       #24
 save_cl0@           lda       ,x+
                     sta       ,y+
                     decb
                     bne       save_cl0@
 
-* Program Colors 1..4 in CLUT 0
+* Program Colors 1..6 in CLUT 0
                     leax      tile_palette,pcr
                     ldy       #MAPADDR+GRPH_LUT0_OFF+4
-                    ldb       #16
+                    ldb       #24
 set_cl0@            lda       ,x+
                     sta       ,y+
                     decb
@@ -266,10 +262,10 @@ set_cl0@            lda       ,x+
                     clr       ,x+
                     clr       ,x+
 
-* Program Colors 1..4 in CLUT 1
+* Program Colors 1..6 in CLUT 1
                     leax      tile_palette,pcr
                     ldy       #MAPADDR+GRPH_LUT1_OFF+4
-                    ldb       #16
+                    ldb       #24
 set_cl1@            lda       ,x+
                     sta       ,y+
                     decb
@@ -434,7 +430,7 @@ DoneFlush           equ       *
                     sta       >MAPSLOT
                     ldx       #MAPADDR+GRPH_LUT0_OFF+4
                     leay      save_clut0,u
-                    ldb       #16
+                    ldb       #24
 rst_cl0@            lda       ,y+
                     sta       ,x+
                     decb
@@ -460,6 +456,32 @@ rst_cl0@            lda       ,y+
 
                     clrb                          Status 0 = Success
                     os9       F$Exit
+
+* ---- MakeTile0: Generate Emerald Green Box with Magenta Border at X ----
+* Preserves U. Modifies A, B, X, scratch.
+MakeTile0           clr       <scratch            scratch = row (0..15)
+row0@               clrb                          B = col (0..15)
+col0@               tst       <scratch            top edge?
+                    beq       border0@
+                    lda       <scratch
+                    cmpa      #15                 bottom edge?
+                    beq       border0@
+                    tstb                          left edge?
+                    beq       border0@
+                    cmpb      #15                 right edge?
+                    beq       border0@
+                    lda       #5                  Color 5: Emerald Green interior
+                    bra       pix0_st@
+border0@            lda       #6                  Color 6: Magenta border
+pix0_st@            sta       ,x+
+                    incb
+                    cmpb      #16
+                    bne       col0@
+                    inc       <scratch
+                    lda       <scratch
+                    cmpa      #16
+                    bne       row0@
+                    rts
 
 * ---- MakeTile1: Generate White Box with Red Border at X ----
 * Preserves U. Modifies A, B, X, scratch.
@@ -487,7 +509,7 @@ pix1_st@            sta       ,x+
                     bne       row1@
                     rts
 
-* ---- MakeTile2: Generate Black Box with Gold Border and Pip at X ----
+* ---- MakeTile2: Generate Royal Blue Box with Yellow Border and Pip at X ----
 * Preserves U. Modifies A, B, X, scratch.
 MakeTile2           clr       <scratch            scratch = row (0..15)
 row2@               clrb                          B = col (0..15)
@@ -510,11 +532,11 @@ col2@               tst       <scratch            top edge?
                     blo       bg2@
                     cmpb      #9
                     bhi       bg2@
-                    lda       #3                  Color 3: Amber-Gold center pip
+                    lda       #3                  Color 3: Bright Yellow center pip
                     bra       pix2_st@
-bg2@                lda       #4                  Color 4: Jet Black interior
+bg2@                lda       #4                  Color 4: Royal Blue interior
                     bra       pix2_st@
-border2@            lda       #3                  Color 3: Amber-Gold border
+border2@            lda       #3                  Color 3: Bright Yellow border
 pix2_st@            sta       ,x+
                     incb
                     cmpb      #16
@@ -615,11 +637,13 @@ UnMap               lda       <saveslot
                     andcc     #^IntMasks
                     rts
 
-* Palette definitions for Colors 1..4 (16 bytes, Blue, Green, Red, Alpha)
+* Palette definitions for Colors 1..6 (24 bytes, Blue, Green, Red, Alpha)
 tile_palette        fcb       32,32,255,0         Color 1: Bright Vivid Red (Tile 1 Border)
                     fcb       255,255,255,0       Color 2: Brilliant Pure White (Tile 1 Interior)
-                    fcb       0,215,255,0         Color 3: Bright Amber-Gold (Tile 2 Border & Pip)
-                    fcb       1,1,1,0             Color 4: Solid Jet Black (Tile 2 Interior)
+                    fcb       0,255,255,0         Color 3: Bright Yellow (Tile 2 Border & Pip)
+                    fcb       255,32,32,0         Color 4: Royal Blue (Tile 2 Interior)
+                    fcb       32,255,32,0         Color 5: Emerald Green (Tile 0 Interior)
+                    fcb       255,32,255,0        Color 6: Magenta (Tile 0 Border)
 
                     emod
 eom                 equ       *
