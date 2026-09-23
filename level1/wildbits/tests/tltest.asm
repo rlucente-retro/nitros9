@@ -88,7 +88,7 @@ AUTO_FRAMES         equ       300                 ~10 seconds at ~30 fps
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       11
+edition             set       12
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -97,7 +97,8 @@ saveffa0            rmb       1
 saveslot            rmb       1
 savemcr             rmb       1
 savelayer0          rmb       1
-fine_scroll         rmb       1                   sub-tile fine scroll (0..15)
+fine_scroll         rmb       1                   scroll offset (0..16)
+scroll_dir          rmb       1                   scroll direction (0 = forward, 1 = backward)
 frames_left         rmb       2                   countdown to auto-exit
 sig_flag            rmb       1                   signal received flag
 scratch             rmb       1
@@ -150,6 +151,7 @@ FlushDone           equ       *
                     ldd       #AUTO_FRAMES
                     std       <frames_left
                     clr       <fine_scroll
+                    clr       <scroll_dir
 
 * Clear all 2048 bytes of raw buffers (tileraw + matraw) to prevent random memory leaks
                     leax      tileraw,u
@@ -365,14 +367,30 @@ MainLoop            equ       *
                     beq       ScrollFrame
                     lbra      ExitClean
 
-* Update scroll coordinates (smooth fine sub-tile scroll strictly 0..15)
-ScrollFrame         inc       <fine_scroll
+* Update scroll coordinates with smooth ping-pong (triangle wave) motion
+* Bounces smoothly between 0 and 16 pixels.
+* Every single frame moves exactly 1 pixel (no sawtooth jumps, zero flicker).
+ScrollFrame         tst       <scroll_dir
+                    bne       ScrollDown
+* Scrolling forward (0 -> 16)
+                    inc       <fine_scroll
                     lda       <fine_scroll
-                    anda      #$0F                clamp to 0..15 pixels
-                    sta       <fine_scroll
+                    cmpa      #16
+                    blo       UpdateRegs
+* Reached 16: set direction to backward
+                    lda       #1
+                    sta       <scroll_dir
+                    bra       UpdateRegs
+
+* Scrolling backward (16 -> 0)
+ScrollDown          dec       <fine_scroll
+                    tst       <fine_scroll
+                    bne       UpdateRegs
+* Reached 0: set direction to forward
+                    clr       <scroll_dir
 
 * Update scroll registers in Page $C0 - Big-Endian (H, L via STD)
-                    lbsr      MapVky
+UpdateRegs          lbsr      MapVky
                     ldx       #MAPADDR+$1100
                     clra
                     ldb       <fine_scroll
