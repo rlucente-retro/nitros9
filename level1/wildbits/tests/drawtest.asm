@@ -4,11 +4,11 @@
 *
 * by John Federico
 *
-*  2       2026/09/24  Antigravity
-* Eliminated background static by clearing VKY_LAYER_CTRL_0/1 ($FFC2-$FFC3),
-* resetting border control ($FFC4), setting MASTER_CTRL_REG_H ($FFC1) to 0,
-* and replacing the 10-block F$MapBlk loop in clearbitmap with instant 1D DMA
-* Fill (76,800 bytes to black), protected with interrupt masking.
+*  3       2026/09/24  Antigravity
+* Eliminated hardware DMA freeze by replacing DMA fill with rock-solid CPU
+* block-mapping clear loop (F$MapBlk / F$ClrBlk), preserving U and masking IRQs.
+* Clears all 10 blocks (81,920 bytes) to black in ~26ms at 25 MHz without
+* deadlocking the FPGA core bus handshake.
 ********************************************************************
 
 
@@ -23,20 +23,9 @@
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       2
+edition             set       3
 
 * Explicit Hardware Register Equates
-DMA_BASE_ADDR       equ       $FEC0
-DMA_CTRL            equ       DMA_BASE_ADDR+DMA_CTRL_REG
-DMA_STATUS          equ       DMA_BASE_ADDR+DMA_STATUS_REG
-DMA_DATA_WRITE      equ       DMA_BASE_ADDR+DMA_DATA_2_WRITE
-DMA_DST_H           equ       DMA_BASE_ADDR+DMA_DEST_ADDR_H
-DMA_DST_M           equ       DMA_BASE_ADDR+DMA_DEST_ADDR_M
-DMA_DST_L           equ       DMA_BASE_ADDR+DMA_DEST_ADDR_L
-DMA_SZ_1D_H         equ       DMA_BASE_ADDR+DMA_SIZE_1D_H
-DMA_SZ_1D_M         equ       DMA_BASE_ADDR+DMA_SIZE_1D_M
-DMA_SZ_1D_L         equ       DMA_BASE_ADDR+DMA_SIZE_1D_L
-DMA_SZ_Y_H          equ       DMA_BASE_ADDR+DMA_SIZE_Y_H
 VKY_BRDR_CTRL       equ       $FFC4
 
                     mod       eom,name,tylg,atrv,start,size
@@ -116,8 +105,7 @@ start
                     bcc       storeblk            no error, store block#
                     cmpb      #E$WADef            check if window already defined
                     lbne      error               if other error, then end else continue
-storeblk            tfr       x,d
-                    stb       <bmblock            store bitmap block# for later use
+storeblk            stx       <bmblock0           store 16-bit starting block#
 
 setBMClut
 *                   **** assign clut0 to bm0
@@ -221,6 +209,7 @@ exit                tst       <pxlblk
                     beq       @nomap
                     lbsr      fclrblk
                     clr       <pxlblk
+                    clr       <pxlblk0
 @nomap              clr       >VKY_LAYER_CTRL_0   clear layer 0/1 registers
                     clr       >VKY_LAYER_CTRL_1   clear layer 2 register
 *                   **** restore terminal options
@@ -267,51 +256,54 @@ clutpath            fcc       "/dd/cmds/xtclut"
 
 
 * --------------------------------------------------------------------
-* clearbitmap: Instantly clear 76,800-byte bitmap using hardware 1D DMA fill
+* clearbitmap: Clear 10 blocks (81,920 bytes) using CPU F$MapBlk loop
 * --------------------------------------------------------------------
-clearbitmap         pshs      cc,a,b,y
-                    tst       <pxlblk
-                    beq       @nomap
-                    lbsr      fclrblk
+clearbitmap         pshs      cc,d,x,y,u
+                    tst       <pxlblk             is a pixel block mapped?
+                    beq       cb_start
+                    lbsr      fclrblk             unmap it
                     clr       <pxlblk
-@nomap              orcc      #IntMasks           mask IRQs across DMA sequence
-                    lda       <bmblock
-                    tfr       a,b
-                    lsra
-                    lsra
-                    lsra
-                    sta       >DMA_DST_H          Phys[23:16] = bmblock >> 3
-                    aslb
-                    aslb
-                    aslb
-                    aslb
-                    aslb
-                    stb       >DMA_DST_M          Phys[15:8] = (bmblock << 5) & $E0
-                    clr       >DMA_DST_L          Phys[7:0] = $00
+                    clr       <pxlblk0
 
-                    clr       >DMA_DATA_WRITE     fill color = 0 (black / eraser)
-                    clr       >DMA_SZ_Y_H         clear live 2D register before 1D fill
-                    lda       #$01                size = $012C00 (76,800 bytes)
-                    sta       >DMA_SZ_1D_H
-                    lda       #$2C
-                    sta       >DMA_SZ_1D_M
-                    clr       >DMA_SZ_1D_L
+cb_start            orcc      #IntMasks           mask IRQs during block mapping
+                    ldd       <bmblock0           load 16-bit starting block#
+                    std       <currBlk
+                    lda       #10                 10 blocks to clear
+                    sta       <blkCnt
 
-                    lda       #DMA_CTRL_Fill+DMA_CTRL_Enable
-                    anda      #^DMA_CTRL_Start_Trf
-                    sta       >DMA_CTRL
-                    ora       #DMA_CTRL_Start_Trf
-                    sta       >DMA_CTRL
+cb_loop             ldx       <currBlk            X = 16-bit block number
+                    ldb       #1                  B = 1 block
+                    pshs      u                   preserve U (process data)
+                    os9       F$MapBlk            returns mapped addr in U ($C000)
+                    bcs       cb_map_err          branch on mapping error
+                    tfr       u,y                 Y = mapped buffer ($C000)
+                    puls      u                   restore U immediately
+                    pshs      y                   save block start address ($C000)
 
-                    ldy       #$FFFF              bounded wait loop
-cb_wait            lda       >DMA_STATUS
-                    bita      #DMA_STATUS_TRF_IP
-                    beq       cb_done
-                    leay      -1,y
-                    bne       cb_wait
+* Fast CPU clear: 4096 words = 8192 bytes (~2.6ms per block)
+                    ldd       #0
+                    ldx       #$1000
+cb_clrlp            std       ,y++
+                    leax      -1,x
+                    bne       cb_clrlp
 
-cb_done            clr       >DMA_CTRL           disarm DMA engine
-                    puls      cc,a,b,y,pc
+* Unmap the block
+                    puls      y                   restore Y ($C000)
+                    pshs      u                   preserve U
+                    tfr       y,u                 U = mapped address
+                    ldb       #1                  1 block
+                    os9       F$ClrBlk            release block
+                    puls      u                   restore U
+
+cb_next             ldd       <currBlk
+                    addd      #1
+                    std       <currBlk
+                    dec       <blkCnt
+                    bne       cb_loop
+                    bra       cb_done
+
+cb_map_err          puls      u                   restore U on error
+cb_done             puls      cc,d,x,y,u,pc
 		    
 
 INKEY               lda       <currPath           path #
@@ -543,19 +535,21 @@ writepixel          pshs      a,b,x,y,u
 *                   **** a now contains the relative block number,
 *                   **** and X contains the block relative offset.xxxxxxxxw
                     pshs      x                   stx pixel offset
-                    adda      <bmblock            add start of bitmap to relative to get block#
-                    cmpa      <pxlblk              is this the currently mapped block?
+                    ldx       <bmblock0           16-bit base block#
+                    leax      a,x                 add relative block# (0-9)
+                    cmpx      <pxlblk0            is this the currently mapped block?
                     beq       storepixel@         if current block, then just write the pixel
-                    tst       <pxlblk              if not, check if mapped block exists, 0 if none
+                    tst       <pxlblk             if not, check if mapped block exists, 0 if none
                     beq       mapit@              no mapped block then branch to map it
                     bsr       fclrblk             have a mapped block, clear it
-mapit@              sta       <pxlblk              store the new block we will map
-                    ldx       <pxlblk0             load x with mapblock for F$MapBlk
+mapit@              stx       <pxlblk0            store the new 16-bit block we will map
                     ldb       #1                  map 1 block
                     pshs      u                   push u (F$MapBlk returns address in u)
                     os9       F$MapBlk            Map the block
                     lbcc      mapgood@            if successful, finish
                     puls      u,x                 error, clean up and return
+                    clr       <pxlblk
+                    clr       <pxlblk0
                     bra       cleanup@            
 mapgood@            stu       <pxlblkaddr         store the logical address
                     puls      u
