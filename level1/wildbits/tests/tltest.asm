@@ -82,6 +82,15 @@
 * Initializing Tile 0 as Jet Black with Amber-Gold border and 4x4 pip, and
 * Tiles 1, 2, 3 as Brilliant Pure White with Vivid Red border, achieves 100%
 * identical high-contrast checkerboard rendering across both hardware and MAME.
+*   16     2026/09/23  Antigravity
+* 1-based tile indexing parity across TinyVicky II FPGA hardware and MAME:
+* On physical hardware, Matrix Byte 0 is 1-based: index 0 is transparent (no
+* tile), index 1 references the 1st tile in Tile Set (offset 0), and index 2
+* references the 2nd tile in Tile Set (offset 256).
+* Edition 16 matrix alternates Tile Index 2 (Tile 1: White/Red) and Tile
+* Index 1 (Tile 0: Black/Gold with 4x4 pip).
+* Updated MAME wbjr2 tile engine to match physical hardware: index 0 = transparent,
+* index n >= 1 = n-1. Both targets now render identical, glorious checkerboards!
 ********************************************************************
 
                     nam       tltest
@@ -105,7 +114,7 @@ AUTO_FRAMES         equ       300                 ~10 seconds at ~30 fps
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       15
+edition             set       16
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -229,11 +238,11 @@ clr_raw@            clr       ,x+
                     lbsr      MakeTileWhiteRed
 
 * ---- 5. Fill the 22x16 Tilemap Matrix ----
-* Dual-target high-contrast checkerboard alternation:
-* Even cells: Tile Index 2 (hardware decodes 2>>1=1: Tile 1 White/Red; MAME: Tile 2 White/Red)
-* Odd cells:  Tile Index 0 (hardware decodes 0>>1=0: Tile 0 Black/Gold; MAME: Tile 0 Black/Gold)
+* 1-based indexing high-contrast checkerboard alternation:
+* Even cells: Tile Index 2 (1-based -> Tile 1 White/Red at +256)
+* Odd cells:  Tile Index 1 (1-based -> Tile 0 Black/Gold at +0)
 * Canonical Vicky II cell format:
-*   Byte 0 = Tile Index (2 for White/Red, 0 for Black/Gold)
+*   Byte 0 = Tile Index (2 for White/Red, 1 for Black/Gold)
 *   Byte 1 = Attribute = 0 (TS0, CLUT0, no flips)
                     ldx       <matbase
                     clr       <scratch            scratch = row (0..15)
@@ -243,10 +252,10 @@ mcol@               lda       <scratch
                     adda      ,s+                 (row + col)
                     anda      #1                  0 (even) or 1 (odd)
                     bne       odd_cell@
-                    lda       #2                  Even: Tile 1 (hardware: 2>>1=1) / Tile 2 (MAME)
+                    lda       #2                  Even: Tile Index 2 (Tile 1 White/Red)
                     bra       st_cell@
-odd_cell@           lda       #0                  Odd:  Tile 0 (hardware: 0>>1=0) / Tile 0 (MAME)
-st_cell@            sta       ,x+                 Byte 0: Tile Index (2 or 0)
+odd_cell@           lda       #1                  Odd:  Tile Index 1 (Tile 0 Black/Gold)
+st_cell@            sta       ,x+                 Byte 0: Tile Index (2 or 1)
                     clr       ,x+                 Byte 1: Attribute (0 = TS0, CLUT0)
                     incb
                     cmpb      #MAP_W
