@@ -4,9 +4,12 @@
 *
 * by John Federico
 *
-* Edt/Rev  YYYY/MM/DD  Modified by
-* Comment
-* ------------------------------------------------------------------
+*  2       2026/09/24  Antigravity
+* Eliminated background static by clearing VKY_LAYER_CTRL_0/1 ($FFC2-$FFC3),
+* resetting border control ($FFC4), setting MASTER_CTRL_REG_H ($FFC1) to 0,
+* and replacing the 10-block F$MapBlk loop in clearbitmap with instant 1D DMA
+* Fill (76,800 bytes to black), protected with interrupt masking.
+********************************************************************
 
 
                     nam       drawtest
@@ -20,7 +23,21 @@
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       1
+edition             set       2
+
+* Explicit Hardware Register Equates
+DMA_BASE_ADDR       equ       $FEC0
+DMA_CTRL            equ       DMA_BASE_ADDR+DMA_CTRL_REG
+DMA_STATUS          equ       DMA_BASE_ADDR+DMA_STATUS_REG
+DMA_DATA_WRITE      equ       DMA_BASE_ADDR+DMA_DATA_2_WRITE
+DMA_DST_H           equ       DMA_BASE_ADDR+DMA_DEST_ADDR_H
+DMA_DST_M           equ       DMA_BASE_ADDR+DMA_DEST_ADDR_M
+DMA_DST_L           equ       DMA_BASE_ADDR+DMA_DEST_ADDR_L
+DMA_SZ_1D_H         equ       DMA_BASE_ADDR+DMA_SIZE_1D_H
+DMA_SZ_1D_M         equ       DMA_BASE_ADDR+DMA_SIZE_1D_M
+DMA_SZ_1D_L         equ       DMA_BASE_ADDR+DMA_SIZE_1D_L
+DMA_SZ_Y_H          equ       DMA_BASE_ADDR+DMA_SIZE_Y_H
+VKY_BRDR_CTRL       equ       $FFC4
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -113,6 +130,10 @@ setBMClut
 		    lbsr      clutcopy
 setlayer
 *                   **** assign bm0 to layer0               
+                    clr       >VKY_LAYER_CTRL_0   ensure Layer 0 = BM0, Layer 1 = BM0
+                    clr       >VKY_LAYER_CTRL_1   ensure Layer 2 = BM0
+                    clr       >VKY_BRDR_CTRL      border off
+
                     ldx       #0                  layer #
                     ldy       #0                  bitmap #
                     lda       <currPath           path # 
@@ -123,8 +144,9 @@ setlayer
 
 main                
 *                    **** turn on graphics
-                    ldx       #FX_BM+FX_GRF       turn on bitmaps and graphics
-                    ldy       #FT_OMIT            don't change $FFC1
+                    clr       >MASTER_CTRL_REG_H  60Hz mode, Font 0, 1x text
+                    ldx       #FX_BM+FX_GRF       turn on bitmaps and graphics only
+                    ldy       #0                  $FFC1 = 0
                     lda       <currPath           path #
                     ldb       #SS.DScrn           display screen with new settings 
                     os9       I$SetStt            
@@ -199,7 +221,8 @@ exit                tst       <pxlblk
                     beq       @nomap
                     lbsr      fclrblk
                     clr       <pxlblk
-@nomap
+@nomap              clr       >VKY_LAYER_CTRL_0   clear layer 0/1 registers
+                    clr       >VKY_LAYER_CTRL_1   clear layer 2 register
 *                   **** restore terminal options
                     leax      <popts,u
                     lda       <currPath
@@ -243,27 +266,52 @@ clutpath            fcc       "/dd/cmds/xtclut"
                     fcb       $0D
 
 
-clearbitmap         pshs      a,b,x,y,u
+* --------------------------------------------------------------------
+* clearbitmap: Instantly clear 76,800-byte bitmap using hardware 1D DMA fill
+* --------------------------------------------------------------------
+clearbitmap         pshs      cc,a,b,y
                     tst       <pxlblk
                     beq       @nomap
                     lbsr      fclrblk
                     clr       <pxlblk
-@nomap              lda	      #10	          loop through 10 blocks
-                    ldx	      <bmblock0		  block#
-clrloop@            ldb       #1                  map 1 block
-                    os9       F$MapBlk            map the block
-		    pshs      u			  preserve start addr of block
-		    ldy	      #$2000		  set up clear loop
-loop@		    clr	      ,u+		  clear 8K
-		    leay      -1,y		  decrement counter
-		    bne	      loop@		  
-		    puls      u			  puls start addr to clear block
-		    ldb	      #1
-		    os9	      F$ClrBlk	          clear block
-		    leax      1,x		  increment block number 
-		    deca      			  decrement block counter
-		    bne       clrloop@
-		    puls      a,b,x,y,u,pc
+@nomap              orcc      #IntMasks           mask IRQs across DMA sequence
+                    lda       <bmblock
+                    tfr       a,b
+                    lsra
+                    lsra
+                    lsra
+                    sta       >DMA_DST_H          Phys[23:16] = bmblock >> 3
+                    aslb
+                    aslb
+                    aslb
+                    aslb
+                    aslb
+                    stb       >DMA_DST_M          Phys[15:8] = (bmblock << 5) & $E0
+                    clr       >DMA_DST_L          Phys[7:0] = $00
+
+                    clr       >DMA_DATA_WRITE     fill color = 0 (black / eraser)
+                    clr       >DMA_SZ_Y_H         clear live 2D register before 1D fill
+                    lda       #$01                size = $012C00 (76,800 bytes)
+                    sta       >DMA_SZ_1D_H
+                    lda       #$2C
+                    sta       >DMA_SZ_1D_M
+                    clr       >DMA_SZ_1D_L
+
+                    lda       #DMA_CTRL_Fill+DMA_CTRL_Enable
+                    anda      #^DMA_CTRL_Start_Trf
+                    sta       >DMA_CTRL
+                    ora       #DMA_CTRL_Start_Trf
+                    sta       >DMA_CTRL
+
+                    ldy       #$FFFF              bounded wait loop
+cb_wait            lda       >DMA_STATUS
+                    bita      #DMA_STATUS_TRF_IP
+                    beq       cb_done
+                    leay      -1,y
+                    bne       cb_wait
+
+cb_done            clr       >DMA_CTRL           disarm DMA engine
+                    puls      cc,a,b,y,pc
 		    
 
 INKEY               lda       <currPath           path #

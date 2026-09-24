@@ -20,6 +20,9 @@
 * overhead. Synchronized DMA triggers to start of VBLANK (row >= 480) for
 * zero bus collisions and reliable completion. Replaced character-by-character
 * syscall printing with single-syscall string write, eliminating text corruption.
+*  10      2026/09/24  Antigravity
+* Eliminated WaitVBlank scanline polling and masked interrupts (orcc #IntMasks)
+* across DMA trigger sequences, resolving hardware CPU_STOPPED_ST0 deadlock.
 ********************************************************************
 
                     nam       dmashowtest
@@ -35,7 +38,7 @@ Level               set       2
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       9
+edition             set       10
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
@@ -251,8 +254,7 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     sta       >DMA_SZ_1D_M
                     clr       >DMA_SZ_1D_L
 
-* Synchronize to VBLANK before full screen 1D fill
-                    lbsr      WaitVBlank
+* Execute full screen 1D fill
                     lda       #DMA_CTRL_Fill+DMA_CTRL_Enable
                     lbsr      ExecDma
 
@@ -326,10 +328,6 @@ AnimLoop            lda       abort_flag,u
                     cmpa      #$05                Ctrl-E?
                     lbeq      CleanExit
 no_key
-
-* Synchronize to start of VBLANK so BOTH erase and draw happen in vertical blank
-                    lbsr      WaitVBlank
-
 * Erase old box at (box_x, box_y): 40x40 with background color 24
                     ldx       <box_x
                     ldy       <box_y
@@ -459,8 +457,6 @@ DmaFillRect         pshs      a,x,y
                     lda       #$40
                     sta       >DMA_STRD_D_L       FED3 = $40
 
-* Synchronize window fill to VBLANK
-                    lbsr      WaitVBlank
 * Execute 2D DMA Fill: CTRL = DMA_CTRL_1D_2D + DMA_CTRL_Fill + DMA_CTRL_Enable ($07)
                     lda       #DMA_CTRL_1D_2D+DMA_CTRL_Fill+DMA_CTRL_Enable
                     lbsr      ExecDma
@@ -500,29 +496,18 @@ DmaFillBox          pshs      a,x,y
                     puls      a,x,y,pc
 
 * --------------------------------------------------------------------
-* ExecDma: Execute a DMA transfer synchronized to VBLANK
-* --------------------------------------------------------------------
-* WaitVBlank: Synchronize to the leading edge of vertical blanking
-* --------------------------------------------------------------------
-WaitVBlank          pshs      d
-vb_act@             ldd       >VKY_RAST_ROW
-                    cmpd      #480
-                    bhs       vb_act@
-vb_lead@            ldd       >VKY_RAST_ROW
-                    cmpd      #480
-                    blo       vb_lead@
-                    puls      d,pc
-
-* --------------------------------------------------------------------
-* ExecDma: Execute a DMA transfer
+* ExecDma: Execute a DMA transfer with interrupts masked
 * Entry: A = DMA_CTRL command bits (e.g. $05 for 1D fill, $07 for 2D fill)
 * Protocol:
-*  1. Writes mode + DMA_CTRL_Enable with Start_Trf = 0
-*  2. Strobes Start_Trf (0 -> 1 rising edge) while Enable is ALREADY high
-*  3. Bounded wait loop on DMA_STATUS_TRF_IP
-*  4. Clears Start_Trf and disarms engine
+*  1. Masks interrupts (orcc #IntMasks) so IRQ jitter cannot interrupt trigger
+*  2. Writes mode + DMA_CTRL_Enable with Start_Trf = 0
+*  3. Strobes Start_Trf (0 -> 1 rising edge) while Enable is ALREADY high
+*  4. Bounded wait loop on DMA_STATUS_TRF_IP
+*  5. Clears Start_Trf, disarms engine, and restores interrupts
 * --------------------------------------------------------------------
-ExecDma             pshs      a,y
+ExecDma             pshs      cc,a,y
+                    orcc      #IntMasks           mask IRQ/FIRQ across DMA trigger
+
 * Step 1: Ensure DMA_CTRL_Enable is high and Start_Trf is 0
                     anda      #^DMA_CTRL_Start_Trf
                     sta       >DMA_CTRL
@@ -540,7 +525,7 @@ ed_wait             lda       >DMA_STATUS
                     bne       ed_wait
 
 ed_done             clr       >DMA_CTRL           clear Start_Trf and disarm engine
-                    puls      a,y,pc
+                    puls      cc,a,y,pc
 
 * --------------------------------------------------------------------
 * CalcPixelPhys: Calculate 24-bit physical address for (X, Y) on BM0
