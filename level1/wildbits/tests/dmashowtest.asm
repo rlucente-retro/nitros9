@@ -8,6 +8,18 @@
 *  4. Real-Time 2D DMA Animation: Smooth 40x40 bouncing box at 30 fps
 *  5. Text Overlay: NitrOS-9 shell text floats directly over graphics
 *  6. Clean Exit: Restores text mode after 15 seconds or on any keypress
+*
+* Edt/Rev  YYYY/MM/DD  Modified by
+* ------------------------------------------------------------------
+*   8      2026/09/22  Antigravity
+* Hardened against error 128 by allocating BM0 via SS.AScrn, mapping CLUT0
+* via block $C1 directly, and preserving static register U across system calls.
+*   9      2026/09/24  Antigravity
+* Upgraded cascading windows and bouncing box to native 2D hardware DMA
+* transfers (width x height with stride 320), eliminating 50x / 40x loop
+* overhead. Synchronized DMA triggers to start of VBLANK (row >= 480) for
+* zero bus collisions and reliable completion. Replaced character-by-character
+* syscall printing with single-syscall string write, eliminating text corruption.
 ********************************************************************
 
                     nam       dmashowtest
@@ -23,7 +35,7 @@ Level               set       2
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       8
+edition             set       9
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
@@ -47,6 +59,8 @@ DMA_STRD_S_H        equ       DMA_BASE_ADDR+DMA_SRC_STRIDE_X_H
 DMA_STRD_S_L        equ       DMA_BASE_ADDR+DMA_SRC_STRIDE_X_L
 DMA_STRD_D_H        equ       DMA_BASE_ADDR+DMA_DST_STRIDE_Y_H
 DMA_STRD_D_L        equ       DMA_BASE_ADDR+DMA_DST_STRIDE_Y_L
+VKY_RAST_COL        equ       $FFD8
+VKY_RAST_ROW        equ       $FFDA
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -74,6 +88,8 @@ name                fcs       /dmashowtest/
                     fcb       edition
 
 start               equ       *
+                    tfr       u,d
+                    tfr       a,dp                sync DP with U base page
                     stu       <saved_u            save static register U immediately!
                     clr       <abort_flag
 
@@ -235,8 +251,10 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     sta       >DMA_SZ_1D_M
                     clr       >DMA_SZ_1D_L
 
-                    lda       #DMA_CTRL_Start_Trf+DMA_CTRL_Fill+DMA_CTRL_Enable
-                    lbsr      ExecDma1D
+* Synchronize to VBLANK before full screen 1D fill
+                    lbsr      WaitVBlank
+                    lda       #DMA_CTRL_Fill+DMA_CTRL_Enable
+                    lbsr      ExecDma
 
 * ====================================================================
 * Step 5: DEMO 2 - Cascading Rectangular Windows via Hardware DMA
@@ -308,6 +326,9 @@ AnimLoop            lda       abort_flag,u
                     cmpa      #$05                Ctrl-E?
                     lbeq      CleanExit
 no_key
+
+* Synchronize to start of VBLANK so BOTH erase and draw happen in vertical blank
+                    lbsr      WaitVBlank
 
 * Erase old box at (box_x, box_y): 40x40 with background color 24
                     ldx       <box_x
@@ -414,74 +435,94 @@ ExitErr             ldb       #1
 
 * --------------------------------------------------------------------
 * DmaFillRect: Draw an 80x50 filled rectangle at (X, Y) with color A
-* Implemented via 50 hardware 1D DMA line fills (fully hardware-safe)
+* Implemented via a single 2D hardware DMA transfer
 * --------------------------------------------------------------------
-DmaFillRect         pshs      a,x,y,u
-                    ldu       #50                 50 rows
-dfr_row_lp          lda       ,s                  restore fill color
-                    sta       >DMA_DATA_WRITE     ensure fill byte is set
+DmaFillRect         pshs      a,x,y
+                    sta       >DMA_DATA_WRITE     FEC1 = fill color
                     lbsr      CalcPixelPhys       compute 24-bit physical address for (X, Y)
-                    sta       >DMA_DST_H
-                    stb       >DMA_DST_M
+                    sta       >DMA_DST_H          FEC9
+                    stb       >DMA_DST_M          FECA
                     lda       <temp_buf
-                    sta       >DMA_DST_L
+                    sta       >DMA_DST_L          FECB
 
-                    clr       >DMA_SZ_Y_H         clear 2D dirty registers
-                    clr       >DMA_SZ_1D_H
-                    clr       >DMA_SZ_1D_M
-                    lda       #80                 80 bytes per row
-                    sta       >DMA_SZ_1D_L
+* Set 2D dimensions: Width = 80, Height = 50
+                    clr       >DMA_SZ_X_H         FECC = 0
+                    lda       #80
+                    sta       >DMA_SZ_X_L         FECD = 80
+                    clr       >DMA_SZ_Y_H         FECE = 0
+                    lda       #50
+                    sta       >DMA_SZ_Y_L         FECF = 50
 
-                    lda       #DMA_CTRL_Start_Trf+DMA_CTRL_Fill+DMA_CTRL_Enable
-                    lbsr      ExecDma1D
+* Set destination stride: 320 ($0140)
+                    lda       #1
+                    sta       >DMA_STRD_D_H       FED2 = 1
+                    lda       #$40
+                    sta       >DMA_STRD_D_L       FED3 = $40
 
-                    leay      1,y                 Y = Y + 1 (next row)
-                    leau      -1,u
-                    cmpu      #0
-                    bne       dfr_row_lp
+* Synchronize window fill to VBLANK
+                    lbsr      WaitVBlank
+* Execute 2D DMA Fill: CTRL = DMA_CTRL_1D_2D + DMA_CTRL_Fill + DMA_CTRL_Enable ($07)
+                    lda       #DMA_CTRL_1D_2D+DMA_CTRL_Fill+DMA_CTRL_Enable
+                    lbsr      ExecDma
 
-                    puls      a,x,y,u,pc
+                    puls      a,x,y,pc
 
 * --------------------------------------------------------------------
 * DmaFillBox: Draw a 40x40 filled rectangle at (X, Y) with color A
-* Implemented via 40 hardware 1D DMA line fills (fully hardware-safe)
+* Implemented via a single 2D hardware DMA transfer
 * --------------------------------------------------------------------
-DmaFillBox          pshs      a,x,y,u
-                    ldu       #40                 40 rows
-dfb_row_lp          lda       ,s                  restore fill color
-                    sta       >DMA_DATA_WRITE     ensure fill byte is set
+DmaFillBox          pshs      a,x,y
+                    sta       >DMA_DATA_WRITE     FEC1 = fill color
                     lbsr      CalcPixelPhys       compute 24-bit physical address for (X, Y)
-                    sta       >DMA_DST_H
-                    stb       >DMA_DST_M
+                    sta       >DMA_DST_H          FEC9
+                    stb       >DMA_DST_M          FECA
                     lda       <temp_buf
-                    sta       >DMA_DST_L
+                    sta       >DMA_DST_L          FECB
 
-                    clr       >DMA_SZ_Y_H         clear 2D dirty registers
-                    clr       >DMA_SZ_1D_H
-                    clr       >DMA_SZ_1D_M
-                    lda       #40                 40 bytes per row
-                    sta       >DMA_SZ_1D_L
+* Set 2D dimensions: Width = 40, Height = 40
+                    clr       >DMA_SZ_X_H         FECC = 0
+                    lda       #40
+                    sta       >DMA_SZ_X_L         FECD = 40
+                    clr       >DMA_SZ_Y_H         FECE = 0
+                    lda       #40
+                    sta       >DMA_SZ_Y_L         FECF = 40
 
-                    lda       #DMA_CTRL_Start_Trf+DMA_CTRL_Fill+DMA_CTRL_Enable
-                    lbsr      ExecDma1D
+* Set destination stride: 320 ($0140)
+                    lda       #1
+                    sta       >DMA_STRD_D_H       FED2 = 1
+                    lda       #$40
+                    sta       >DMA_STRD_D_L       FED3 = $40
 
-                    leay      1,y                 Y = Y + 1 (next row)
-                    leau      -1,u
-                    cmpu      #0
-                    bne       dfb_row_lp
+* Execute 2D DMA Fill: CTRL = DMA_CTRL_1D_2D + DMA_CTRL_Fill + DMA_CTRL_Enable ($07)
+                    lda       #DMA_CTRL_1D_2D+DMA_CTRL_Fill+DMA_CTRL_Enable
+                    lbsr      ExecDma
 
-                    puls      a,x,y,u,pc
+                    puls      a,x,y,pc
 
 * --------------------------------------------------------------------
-* ExecDma1D: Execute a 1D DMA transfer with two-step enable + strobe
-* Entry: A = DMA_CTRL command byte (includes DMA_CTRL_Start_Trf)
+* ExecDma: Execute a DMA transfer synchronized to VBLANK
+* --------------------------------------------------------------------
+* WaitVBlank: Synchronize to the leading edge of vertical blanking
+* --------------------------------------------------------------------
+WaitVBlank          pshs      d
+vb_act@             ldd       >VKY_RAST_ROW
+                    cmpd      #480
+                    bhs       vb_act@
+vb_lead@            ldd       >VKY_RAST_ROW
+                    cmpd      #480
+                    blo       vb_lead@
+                    puls      d,pc
+
+* --------------------------------------------------------------------
+* ExecDma: Execute a DMA transfer
+* Entry: A = DMA_CTRL command bits (e.g. $05 for 1D fill, $07 for 2D fill)
 * Protocol:
 *  1. Writes mode + DMA_CTRL_Enable with Start_Trf = 0
 *  2. Strobes Start_Trf (0 -> 1 rising edge) while Enable is ALREADY high
-*  3. Bounded wait loop on DMA_STATUS_TRF_IP (never hangs machine)
-*  4. Clears Start_Trf back to 0 (leaving Enable active for next transfer)
+*  3. Bounded wait loop on DMA_STATUS_TRF_IP
+*  4. Clears Start_Trf and disarms engine
 * --------------------------------------------------------------------
-ExecDma1D           pshs      a,y
+ExecDma             pshs      a,y
 * Step 1: Ensure DMA_CTRL_Enable is high and Start_Trf is 0
                     anda      #^DMA_CTRL_Start_Trf
                     sta       >DMA_CTRL
@@ -491,9 +532,7 @@ ExecDma1D           pshs      a,y
                     sta       >DMA_CTRL
 
 * Step 3: Bounded wait for transfer completion
-* On physical hardware, the CPU halts during the VBLANK transfer.
-* When CPU resumes, TRF_IP is 0. If TRF_IP is set, wait until clear.
-                    ldy       #10000              safety timeout counter
+                    ldy       #$FFFF              ample timeout (>180 ms)
 ed_wait             lda       >DMA_STATUS
                     bita      #DMA_STATUS_TRF_IP
                     beq       ed_done             bit 7 is 0 -> transfer complete!
@@ -646,22 +685,19 @@ SigHandler          inc       abort_flag,u
                     rti
 
 * --------------------------------------------------------------------
-* Print Subroutines
+* PrintStr: Output null-terminated string to stdout in a single syscall
+* Entry: X = pointer to string
 * --------------------------------------------------------------------
-PrintStr            pshs      a,y
-ps_lp               lda       ,x+
-                    beq       ps_done
-                    lbsr      PrintChar
-                    bra       ps_lp
-ps_done             puls      a,y,pc
-
-PrintChar           pshs      a,x,y
-                    sta       <temp_buf
-                    lda       #1                  stdout
-                    leax      <temp_buf,u
-                    ldy       #1
+PrintStr            pshs      d,x,y
+                    ldy       #0
+ps_len@             tst       ,x+
+                    beq       ps_done@
+                    leay      1,y
+                    bra       ps_len@
+ps_done@            ldx       2,s                 restore string start pointer
+                    lda       #1                  path 1 (stdout)
                     os9       I$Write
-                    puls      a,x,y,pc
+                    puls      d,x,y,pc
 
 * --------------------------------------------------------------------
 * Message Strings
