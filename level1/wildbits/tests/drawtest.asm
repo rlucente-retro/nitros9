@@ -4,6 +4,11 @@
 *
 * by John Federico
 *
+*  6       2026/09/24  Antigravity
+* Eliminated video SDRAM bus contention and 60 Hz static dashes by adding
+* frame-paced yielding (os9 F$Sleep 1) in the interactive mouse/keyboard loop,
+* preventing 100% CPU bus saturation while preserving responsive 60 fps drawing.
+*
 *  5       2026/09/24  Antigravity
 * Eliminated FPGA text raster pipeline static dashes by enabling text overlay
 * (FX_BM+FX_GRF+FX_OVR+FX_TXT = $0F) in SS.DScrn, keeping the Vicky text pipeline
@@ -30,7 +35,7 @@
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       5
+edition             set       6
 
 * Explicit Hardware Register Equates
 VKY_BG_B            equ       $FFCD
@@ -202,7 +207,7 @@ nextcol@            inc       <currColor
 prevcol@            dec       <currColor
                     bra       pollmouse
 clearsub	    lbsr      clearbitmap
-                    bra       pollkeyboard
+                    bra       pollmouse
 
 pollmouse	    ldb	      #SS.Mouse
 		    clra
@@ -211,13 +216,15 @@ pollmouse	    ldb	      #SS.Mouse
 		    bne	      drawleft@
 		    bita      #$02                right button: erase (color 0)
 		    bne	      drawright@
-		    bra	      pollkeyboard
+		    bra	      pause@
 drawleft@	    lda	      <currColor
 		    lbsr      drawpixel
-		    bra	      pollkeyboard
+		    bra	      pause@
 drawright@	    clra                          color 0 (black / eraser)
 		    lbsr      drawpixel
-		    bra	      pollkeyboard
+pause@              ldx       #1                  sleep 1 tick (60 Hz frame pacing)
+                    os9       F$Sleep
+		    lbra      pollkeyboard
 
 sighandler          lbra      exit
 
