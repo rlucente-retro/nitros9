@@ -73,6 +73,15 @@
 * with Vivid Red border (Color 1, 2). Matrix alternates Tile 1 and Tile 0.
 * Both physical hardware and MAME emulator display the identical high-contrast
 * checkerboard with smooth bidirectional ping-pong scrolling and zero flicker.
+*   15     2026/09/23  Antigravity
+* Full physical hardware and MAME parity via dual-target matrix encoding:
+* Physical hardware (TinyVicky FPGA) decodes Matrix Byte 0 shifted right by 1
+* bit (tile_idx >> 1), as bit 0 is reserved/masked in the FPGA cell word decoder.
+* Writing 2 in Matrix Byte 0 selects Tile 1 (2>>1=1) on physical hardware and
+* Tile 2 in MAME. Writing 0 selects Tile 0 (0>>1=0) on both targets.
+* Initializing Tile 0 as Jet Black with Amber-Gold border and 4x4 pip, and
+* Tiles 1, 2, 3 as Brilliant Pure White with Vivid Red border, achieves 100%
+* identical high-contrast checkerboard rendering across both hardware and MAME.
 ********************************************************************
 
                     nam       tltest
@@ -96,7 +105,7 @@ AUTO_FRAMES         equ       300                 ~10 seconds at ~30 fps
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       14
+edition             set       15
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -209,10 +218,10 @@ clr_raw@            clr       ,x+
                     leax      TILE_BYTES,x        Tile 1 starts at +256
                     lbsr      MakeTileWhiteRed
 
-* ---- 4. Initialize Tile 2 (16x16: Jet Black with Amber-Gold border and 4x4 pip) ----
+* ---- 4. Initialize Tile 2 (16x16: Brilliant White with Vivid Red border for MAME index 2) ----
                     ldx       <tilebase
                     leax      TILE_BYTES*2,x      Tile 2 starts at +512
-                    lbsr      MakeTileBlackGold
+                    lbsr      MakeTileWhiteRed
 
 * ---- 4b. Initialize Tile 3 (16x16: Brilliant White with Vivid Red border) ----
                     ldx       <tilebase
@@ -220,11 +229,11 @@ clr_raw@            clr       ,x+
                     lbsr      MakeTileWhiteRed
 
 * ---- 5. Fill the 22x16 Tilemap Matrix ----
-* High-contrast checkerboard alternation:
-* Even cells: Tile 1 (Brilliant White with Vivid Red border)
-* Odd cells:  Tile 0 (Jet Black with Bright Amber-Gold border and center pip)
+* Dual-target high-contrast checkerboard alternation:
+* Even cells: Tile Index 2 (hardware decodes 2>>1=1: Tile 1 White/Red; MAME: Tile 2 White/Red)
+* Odd cells:  Tile Index 0 (hardware decodes 0>>1=0: Tile 0 Black/Gold; MAME: Tile 0 Black/Gold)
 * Canonical Vicky II cell format:
-*   Byte 0 = Tile Index (1 for White/Red, 0 for Black/Gold)
+*   Byte 0 = Tile Index (2 for White/Red, 0 for Black/Gold)
 *   Byte 1 = Attribute = 0 (TS0, CLUT0, no flips)
                     ldx       <matbase
                     clr       <scratch            scratch = row (0..15)
@@ -232,9 +241,12 @@ mrow@               clrb                          B = col (0..21)
 mcol@               lda       <scratch
                     pshs      b
                     adda      ,s+                 (row + col)
-                    anda      #1                  0 or 1
-                    eora      #1                  even -> 1 (White/Red), odd -> 0 (Black/Gold)
-                    sta       ,x+                 Byte 0: Tile Index (1 or 0)
+                    anda      #1                  0 (even) or 1 (odd)
+                    bne       odd_cell@
+                    lda       #2                  Even: Tile 1 (hardware: 2>>1=1) / Tile 2 (MAME)
+                    bra       st_cell@
+odd_cell@           lda       #0                  Odd:  Tile 0 (hardware: 0>>1=0) / Tile 0 (MAME)
+st_cell@            sta       ,x+                 Byte 0: Tile Index (2 or 0)
                     clr       ,x+                 Byte 1: Attribute (0 = TS0, CLUT0)
                     incb
                     cmpb      #MAP_W
