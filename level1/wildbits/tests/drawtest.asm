@@ -4,6 +4,12 @@
 *
 * by John Federico
 *
+*  5       2026/09/24  Antigravity
+* Eliminated FPGA text raster pipeline static dashes by enabling text overlay
+* (FX_BM+FX_GRF+FX_OVR+FX_TXT = $0F) in SS.DScrn, keeping the Vicky text pipeline
+* synchronized with blanked text buffers ($C2/$C3) as proven in dmashowtest.
+* Separated pxlblk_active flag from 16-bit pxlblk_mapped block tracker in writepixel.
+*
 *  4       2026/09/24  Antigravity
 * Eliminated vertical squish on exit by preserving MASTER_CTRL_REG_H ($FFC1 /
 * DBL_Y) with FT_OMIT instead of clearing it to 0. Eliminated static dashes by
@@ -24,7 +30,7 @@
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       4
+edition             set       5
 
 * Explicit Hardware Register Equates
 VKY_BG_B            equ       $FFCD
@@ -35,12 +41,11 @@ VKY_BRDR_CTRL       equ       $FFC4
 
                     mod       eom,name,tylg,atrv,start,size
 
-pxlblk0		    rmb	      1
-pxlblk		    rmb	      1
-pxlblkaddr	    rmb	      2
+pxlblk_active       rmb       1         0 = no pixel block mapped, 1 = mapped
+pxlblk_mapped       rmb       2         16-bit block number currently mapped
+pxlblkaddr          rmb       2
 currPath            rmb       1         current path for file read
-bmblock0	    rmb	      1
-bmblock             rmb       1         bitmap block#
+bmblock0            rmb       2         16-bit starting block# of bitmap
 mapaddr             rmb       2         Address for mapped block
 currBlk             rmb       2         current mapped in block, (need to read into X)
 blkCnt              rmb       1         Counter for block loop
@@ -65,8 +70,11 @@ start
                     ldx       #0
                     stx       <clutheader
                     stx       <clutdata
-		    stx	      <pxlblk0
-		    stx	      <bmblock0
+                    clr       <pxlblk_active
+                    ldx       #$FFFF
+                    stx       <pxlblk_mapped
+                    ldx       #0
+                    stx       <bmblock0
                     lda       #10                 default color = 10 (bright green)
                     sta       <currColor
 
@@ -141,8 +149,8 @@ setlayer
 		    lbsr      clearbitmap
 
 main                
-*                    **** turn on graphics
-                    ldx       #FX_BM+FX_GRF       turn on bitmaps and graphics only
+*                    **** turn on graphics with synchronized text overlay
+                    ldx       #FX_BM+FX_GRF+FX_OVR+FX_TXT turn on bitmap with synchronized text overlay
                     ldy       #FT_OMIT            preserve MASTER_CTRL_REG_H ($FFC1 / DBL_Y)
                     lda       <currPath           path #
                     ldb       #SS.DScrn           display screen with new settings 
@@ -214,11 +222,12 @@ drawright@	    clra                          color 0 (black / eraser)
 sighandler          lbra      exit
 
 *                   **** turn off graphics
-exit                tst       <pxlblk
+exit                tst       <pxlblk_active
                     beq       @nomap
                     lbsr      fclrblk
-                    clr       <pxlblk
-                    clr       <pxlblk0
+                    clr       <pxlblk_active
+                    ldx       #$FFFF
+                    stx       <pxlblk_mapped
 @nomap              clr       >VKY_LAYER_CTRL_0   clear layer 0/1 registers
                     clr       >VKY_LAYER_CTRL_1   clear layer 2 register
 *                   **** restore terminal options
@@ -271,11 +280,12 @@ clutpath            fcc       "/dd/cmds/xtclut"
 * clearbitmap: Clear 10 blocks (81,920 bytes) using CPU F$MapBlk loop
 * --------------------------------------------------------------------
 clearbitmap         pshs      cc,d,x,y,u
-                    tst       <pxlblk             is a pixel block mapped?
+                    tst       <pxlblk_active      is a pixel block mapped?
                     beq       cb_start
                     lbsr      fclrblk             unmap it
-                    clr       <pxlblk
-                    clr       <pxlblk0
+                    clr       <pxlblk_active
+                    ldx       #$FFFF
+                    stx       <pxlblk_mapped
 
 cb_start            orcc      #IntMasks           mask IRQs during block mapping
                     ldd       <bmblock0           load 16-bit starting block#
@@ -650,21 +660,24 @@ writepixel          pshs      a,b,x,y,u
                     pshs      x                   stx pixel offset
                     ldx       <bmblock0           16-bit base block#
                     leax      a,x                 add relative block# (0-9)
-                    cmpx      <pxlblk0            is this the currently mapped block?
+                    tst       <pxlblk_active      is a block currently mapped?
+                    beq       mapit@              if not, go map it
+                    cmpx      <pxlblk_mapped      is this the currently mapped block?
                     beq       storepixel@         if current block, then just write the pixel
-                    tst       <pxlblk             if not, check if mapped block exists, 0 if none
-                    beq       mapit@              no mapped block then branch to map it
-                    bsr       fclrblk             have a mapped block, clear it
-mapit@              stx       <pxlblk0            store the new 16-bit block we will map
+                    bsr       fclrblk             have a different mapped block, clear it
+mapit@              stx       <pxlblk_mapped      store the new 16-bit block we will map
                     ldb       #1                  map 1 block
                     pshs      u                   push u (F$MapBlk returns address in u)
                     os9       F$MapBlk            Map the block
                     lbcc      mapgood@            if successful, finish
                     puls      u,x                 error, clean up and return
-                    clr       <pxlblk
-                    clr       <pxlblk0
+                    clr       <pxlblk_active
+                    ldx       #$FFFF
+                    stx       <pxlblk_mapped
                     bra       cleanup@            
 mapgood@            stu       <pxlblkaddr         store the logical address
+                    lda       #1
+                    sta       <pxlblk_active      mark block as actively mapped
                     puls      u
 storepixel@         ldd       <pxlblkaddr
                     puls      x                   pull blk relative offset
