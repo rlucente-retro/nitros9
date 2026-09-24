@@ -4,11 +4,12 @@
 *
 * by John Federico
 *
-*  3       2026/09/24  Antigravity
-* Eliminated hardware DMA freeze by replacing DMA fill with rock-solid CPU
-* block-mapping clear loop (F$MapBlk / F$ClrBlk), preserving U and masking IRQs.
-* Clears all 10 blocks (81,920 bytes) to black in ~26ms at 25 MHz without
-* deadlocking the FPGA core bus handshake.
+*  4       2026/09/24  Antigravity
+* Eliminated vertical squish on exit by preserving MASTER_CTRL_REG_H ($FFC1 /
+* DBL_Y) with FT_OMIT instead of clearing it to 0. Eliminated static dashes by
+* zeroing graphics background color ($FFCD-$FFCF), disabling text cursor ($FFD0),
+* explicitly disabling BM1/BM2/TL0..2/128 Sprites in Vicky Block $C0, clearing
+* text buffers ($C2/$C3), and setting Layer Control 0/1 to disable unused layers.
 ********************************************************************
 
 
@@ -23,9 +24,13 @@
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       3
+edition             set       4
 
 * Explicit Hardware Register Equates
+VKY_BG_B            equ       $FFCD
+VKY_BG_G            equ       $FFCE
+VKY_BG_R            equ       $FFCF
+VKY_TXT_CRSR_CTRL   equ       $FFD0
 VKY_BRDR_CTRL       equ       $FFC4
 
                     mod       eom,name,tylg,atrv,start,size
@@ -117,9 +122,14 @@ setBMClut
 		    lbsr      clutload
 		    lbsr      clutcopy
 setlayer
+*                   **** disarm unused planes, text cursor, and blank text buffer
+                    lbsr      disarm_planes
+
 *                   **** assign bm0 to layer0               
-                    clr       >VKY_LAYER_CTRL_0   ensure Layer 0 = BM0, Layer 1 = BM0
-                    clr       >VKY_LAYER_CTRL_1   ensure Layer 2 = BM0
+                    lda       #$70                Layer 1 = 7 (disabled), Layer 0 = 0 (BM0)
+                    sta       >VKY_LAYER_CTRL_0
+                    lda       #$07                Layer 2 = 7 (disabled)
+                    sta       >VKY_LAYER_CTRL_1
                     clr       >VKY_BRDR_CTRL      border off
 
                     ldx       #0                  layer #
@@ -132,9 +142,8 @@ setlayer
 
 main                
 *                    **** turn on graphics
-                    clr       >MASTER_CTRL_REG_H  60Hz mode, Font 0, 1x text
                     ldx       #FX_BM+FX_GRF       turn on bitmaps and graphics only
-                    ldy       #0                  $FFC1 = 0
+                    ldy       #FT_OMIT            preserve MASTER_CTRL_REG_H ($FFC1 / DBL_Y)
                     lda       <currPath           path #
                     ldb       #SS.DScrn           display screen with new settings 
                     os9       I$SetStt            
@@ -228,6 +237,9 @@ exit                tst       <pxlblk
                     ldb       #SS.Opt
                     os9       I$SetStt
 @restoredone
+*                   **** restore text cursor
+                    lda       #Vky_Cursor_Enable|Vky_Cursor_Flash_Rate0|Vky_Cursor_Flash_Rate1
+                    sta       >VKY_TXT_CRSR_CTRL
 *                   **** turn on text, all else off
                     ldx       #FX_TXT             turn on text, all else off
                     ldy       #FT_OMIT            don't change $FFC1
@@ -304,6 +316,107 @@ cb_next             ldd       <currBlk
 
 cb_map_err          puls      u                   restore U on error
 cb_done             puls      cc,d,x,y,u,pc
+
+
+* --------------------------------------------------------------------
+* disarm_planes: Explicitly disarm BM1, BM2, TL0..TL2, and 128 Sprites
+* in Vicky Block $C0, zero background color, disable text cursor,
+* and blank the text screen buffers (Blocks $C2 & $C3).
+* --------------------------------------------------------------------
+disarm_planes       pshs      cc,d,x,y,u
+                    orcc      #IntMasks           mask IRQs
+* 1. Set background color to solid black
+                    clr       >VKY_BG_B
+                    clr       >VKY_BG_G
+                    clr       >VKY_BG_R
+* 2. Disable text cursor
+                    clr       >VKY_TXT_CRSR_CTRL
+
+* 3. Disarm unmapped planes in Vicky Block $C0
+                    ldx       #$C0                Vicky internal register block
+                    ldb       #1                  1 block
+                    pshs      u                   preserve U (process data)
+                    os9       F$MapBlk
+                    bcs       dp_err1
+                    tfr       u,y                 Y = mapped $C0 registers
+                    puls      u                   restore U immediately
+                    pshs      y                   save Y
+* Disable Bitmap 1 ($1008) and Bitmap 2 ($1010)
+                    clr       $1008,y
+                    clr       $1010,y
+* Disable Tilemaps 0..2 ($1100, $110C, $1118)
+                    clr       $1100,y
+                    clr       $110C,y
+                    clr       $1118,y
+* Disable all 128 Sprites ($1300 + s*8)
+                    leay      $1300,y
+                    clra
+                    ldb       #128
+dp_sprlp            sta       ,y
+                    leay      8,y
+                    decb
+                    bne       dp_sprlp
+* Unmap Block $C0
+                    puls      y
+                    pshs      u
+                    tfr       y,u
+                    ldb       #1
+                    os9       F$ClrBlk
+                    puls      u
+                    bra       dp_txt
+
+dp_err1             puls      u
+                    bra       dp_done
+
+* 4. Clear text screen character buffer (Block $C2) to spaces ($20)
+dp_txt              ldx       #$C2                Text characters block
+                    ldb       #1                  1 block
+                    pshs      u
+                    os9       F$MapBlk
+                    bcs       dp_err2
+                    tfr       u,y
+                    puls      u
+                    pshs      y
+                    ldd       #$2020              fill with spaces
+                    ldx       #2400               4800 bytes = 2400 words
+dp_c2lp             std       ,y++
+                    leax      -1,x
+                    bne       dp_c2lp
+                    puls      y
+                    pshs      u
+                    tfr       y,u
+                    ldb       #1
+                    os9       F$ClrBlk
+                    puls      u
+                    bra       dp_attr
+
+dp_err2             puls      u
+                    bra       dp_done
+
+* 5. Clear text screen attribute buffer (Block $C3) to 0
+dp_attr             ldx       #$C3                Text attributes block
+                    ldb       #1                  1 block
+                    pshs      u
+                    os9       F$MapBlk
+                    bcs       dp_err3
+                    tfr       u,y
+                    puls      u
+                    pshs      y
+                    ldd       #0                  fill with zero attributes
+                    ldx       #2400               4800 bytes = 2400 words
+dp_c3lp             std       ,y++
+                    leax      -1,x
+                    bne       dp_c3lp
+                    puls      y
+                    pshs      u
+                    tfr       y,u
+                    ldb       #1
+                    os9       F$ClrBlk
+                    puls      u
+                    bra       dp_done
+
+dp_err3             puls      u
+dp_done             puls      cc,d,x,y,u,pc
 		    
 
 INKEY               lda       <currPath           path #
