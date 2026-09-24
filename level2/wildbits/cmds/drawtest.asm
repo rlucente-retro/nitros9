@@ -4,6 +4,12 @@
 *
 * by John Federico
 *
+*  7       2026/09/24  Antigravity
+* Restored full terminal colors and screen on exit by writing ASCII $0C
+* (Form Feed / ClrScrn, equivalent to 'cls' / 'display c'), repainting the entire
+* text attribute matrix with active theme colors (yellow on purple) instead of
+* leaving unwritten lines black.
+*
 *  6       2026/09/24  Antigravity
 * Eliminated video SDRAM bus contention and 60 Hz static dashes by adding
 * frame-paced yielding (os9 F$Sleep 1) in the interactive mouse/keyboard loop,
@@ -35,7 +41,7 @@
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       6
+edition             set       7
 
 * Explicit Hardware Register Equates
 VKY_BG_B            equ       $FFCD
@@ -273,8 +279,18 @@ exit                tst       <pxlblk_active
                     ldb       #SS.FScrn           free screen ram
                     os9       I$SetStt
                     lbcs      error
-                    clrb
 
+*                   **** clear screen and restore full terminal colors (matches 'cls' / 'display c')
+                    leas      -1,s
+                    lda       #$0C                $0C = Form Feed / ClrScrn (restores active theme colors across entire screen)
+                    sta       ,s
+                    lda       <currPath
+                    ldy       #1
+                    leax      ,s
+                    os9       I$Write
+                    leas      1,s
+
+                    clrb
 error               os9       F$Exit
 
 colortbl            fcb       15,9,10,11,14,13,214,75,207,82
