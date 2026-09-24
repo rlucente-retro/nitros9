@@ -23,6 +23,11 @@
 *  10      2026/09/24  Antigravity
 * Eliminated WaitVBlank scanline polling and masked interrupts (orcc #IntMasks)
 * across DMA trigger sequences, resolving hardware CPU_STOPPED_ST0 deadlock.
+*  11      2026/09/24  Antigravity
+* Corrected DMA destination address registers to Little-Endian ($FEC8=L,
+* $FEC9=M, $FECA=H) matching TinyVKY hardware. Rewrote CalcPixelPhys to
+* eliminate zero-page/temp_buf dependencies and write destination registers
+* directly. Added 10-tick sequential pauses between cascading windows.
 ********************************************************************
 
                     nam       dmashowtest
@@ -38,30 +43,30 @@ Level               set       2
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       10
+edition             set       11
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
 DMA_CTRL            equ       DMA_BASE_ADDR+DMA_CTRL_REG
 DMA_STATUS          equ       DMA_BASE_ADDR+DMA_STATUS_REG
 DMA_DATA_WRITE      equ       DMA_BASE_ADDR+DMA_DATA_2_WRITE
-DMA_SRC_H           equ       DMA_BASE_ADDR+DMA_SOURCE_ADDR_H
-DMA_SRC_M           equ       DMA_BASE_ADDR+DMA_SOURCE_ADDR_M
-DMA_SRC_L           equ       DMA_BASE_ADDR+DMA_SOURCE_ADDR_L
-DMA_DST_H           equ       DMA_BASE_ADDR+DMA_DEST_ADDR_H
-DMA_DST_M           equ       DMA_BASE_ADDR+DMA_DEST_ADDR_M
-DMA_DST_L           equ       DMA_BASE_ADDR+DMA_DEST_ADDR_L
-DMA_SZ_1D_H         equ       DMA_BASE_ADDR+DMA_SIZE_1D_H
-DMA_SZ_1D_M         equ       DMA_BASE_ADDR+DMA_SIZE_1D_M
-DMA_SZ_1D_L         equ       DMA_BASE_ADDR+DMA_SIZE_1D_L
-DMA_SZ_X_H          equ       DMA_BASE_ADDR+DMA_SIZE_X_H
-DMA_SZ_X_L          equ       DMA_BASE_ADDR+DMA_SIZE_X_L
-DMA_SZ_Y_H          equ       DMA_BASE_ADDR+DMA_SIZE_Y_H
-DMA_SZ_Y_L          equ       DMA_BASE_ADDR+DMA_SIZE_Y_L
-DMA_STRD_S_H        equ       DMA_BASE_ADDR+DMA_SRC_STRIDE_X_H
-DMA_STRD_S_L        equ       DMA_BASE_ADDR+DMA_SRC_STRIDE_X_L
-DMA_STRD_D_H        equ       DMA_BASE_ADDR+DMA_DST_STRIDE_Y_H
-DMA_STRD_D_L        equ       DMA_BASE_ADDR+DMA_DST_STRIDE_Y_L
+DMA_SRC_L           equ       $FEC4
+DMA_SRC_M           equ       $FEC5
+DMA_SRC_H           equ       $FEC6
+DMA_DST_L           equ       $FEC8
+DMA_DST_M           equ       $FEC9
+DMA_DST_H           equ       $FECA
+DMA_SZ_1D_H         equ       $FECF
+DMA_SZ_1D_M         equ       $FECC
+DMA_SZ_1D_L         equ       $FECD
+DMA_SZ_X_H          equ       $FECC
+DMA_SZ_X_L          equ       $FECD
+DMA_SZ_Y_H          equ       $FECE
+DMA_SZ_Y_L          equ       $FECF
+DMA_STRD_S_H        equ       $FED0
+DMA_STRD_S_L        equ       $FED1
+DMA_STRD_D_H        equ       $FED2
+DMA_STRD_D_L        equ       $FED3
 VKY_RAST_COL        equ       $FFD8
 VKY_RAST_ROW        equ       $FFDA
 
@@ -154,6 +159,7 @@ FlushDone
 AllocOk             ldu       <saved_u            restore static U corrupted by SS.AScrn!
                     tfr       x,d                 B = physical starting block
                     stb       <bmblock
+                    stb       bmblock,u
 
 * Compute 24-bit physical address: block * 8192 (block << 13)
                     tfr       b,a
@@ -161,6 +167,7 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     lsra
                     lsra
                     sta       <bm_phys_h          phys 23:16 = block >> 3
+                    sta       bm_phys_h,u
 
                     tfr       b,a
                     asla
@@ -169,7 +176,9 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     asla
                     asla
                     sta       <bm_phys_m          phys 15:8 = (block << 5) & $E0
+                    sta       bm_phys_m,u
                     clr       <bm_phys_l          phys 7:0 = $00
+                    clr       bm_phys_l,u
 
 * ====================================================================
 * Step 2: Set CLUT 0 by mapping Block $C1 into Slot 1 ($2000-$3FFF)
@@ -237,22 +246,22 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
 * Step 4: DEMO 1 - 1D Linear DMA Fill (Full Screen clear to dark slate)
 * ====================================================================
 * 76,800 bytes = $012C00
-                    lda       <bm_phys_h
-                    sta       >DMA_DST_H
-                    lda       <bm_phys_m
-                    sta       >DMA_DST_M
-                    lda       <bm_phys_l
-                    sta       >DMA_DST_L
+                    lda       bm_phys_l,u
+                    sta       >DMA_DST_L          FEC8 = Low
+                    lda       bm_phys_m,u
+                    sta       >DMA_DST_M          FEC9 = Mid
+                    lda       bm_phys_h,u
+                    sta       >DMA_DST_H          FECA = High
 
                     lda       #24                 color index 24 (deep slate blue)
                     sta       >DMA_DATA_WRITE
 
                     clr       >DMA_SZ_Y_H         clear live 2D register before 1D transfer
                     lda       #$01                size = $012C00 (76,800 bytes)
-                    sta       >DMA_SZ_1D_H
+                    sta       >DMA_SZ_1D_H        FECF
                     lda       #$2C
-                    sta       >DMA_SZ_1D_M
-                    clr       >DMA_SZ_1D_L
+                    sta       >DMA_SZ_1D_M        FECC
+                    clr       >DMA_SZ_1D_L        FECD
 
 * Execute full screen 1D fill
                     lda       #DMA_CTRL_Fill+DMA_CTRL_Enable
@@ -266,42 +275,54 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     ldy       #30
                     lda       #45                 Cyan
                     lbsr      DmaFillRect
+                    ldx       #10
+                    os9       F$Sleep
 
                     ldx       #50
                     ldy       #50
                     lda       #95                 Green
                     lbsr      DmaFillRect
+                    ldx       #10
+                    os9       F$Sleep
 
                     ldx       #80
                     ldy       #70
                     lda       #145                Gold
                     lbsr      DmaFillRect
+                    ldx       #10
+                    os9       F$Sleep
 
                     ldx       #110
                     ldy       #90
                     lda       #175                Orange
                     lbsr      DmaFillRect
+                    ldx       #10
+                    os9       F$Sleep
 
                     ldx       #140
                     ldy       #110
                     lda       #235                Magenta
                     lbsr      DmaFillRect
+                    ldx       #10
+                    os9       F$Sleep
 
 * ====================================================================
 * Step 6: DEMO 3 - Real-Time Hardware DMA Animation (Bouncing 40x40 Block)
 * ====================================================================
+                    ldu       <saved_u
                     ldd       #180
-                    std       <box_x
+                    std       box_x,u
                     ldd       #130
-                    std       <box_y
+                    std       box_y,u
                     ldd       #2
-                    std       <box_dx
+                    std       box_dx,u
                     ldd       #1
-                    std       <box_dy
+                    std       box_dy,u
                     ldd       #900                900 loops (15 seconds at 60 fps)
-                    std       <frames_left
+                    std       frames_left,u
 
-AnimLoop            lda       abort_flag,u
+AnimLoop            ldu       <saved_u
+                    lda       abort_flag,u
                     lbne      CleanExit
 
 * Poll stdin for exit keypress
@@ -310,7 +331,7 @@ AnimLoop            lda       abort_flag,u
                     os9       I$GetStt
                     bcs       no_key
                     clra                          path 0
-                    leax      <temp_buf,u
+                    leax      temp_buf,u
                     ldy       #1
                     os9       I$Read
                     bcs       no_key
@@ -329,42 +350,42 @@ AnimLoop            lda       abort_flag,u
                     lbeq      CleanExit
 no_key
 * Erase old box at (box_x, box_y): 40x40 with background color 24
-                    ldx       <box_x
-                    ldy       <box_y
+                    ldx       box_x,u
+                    ldy       box_y,u
                     lda       #24
                     lbsr      DmaFillBox
 
 * Update box_x
-                    ldd       <box_x
-                    addd      <box_dx
-                    std       <box_x
+                    ldd       box_x,u
+                    addd      box_dx,u
+                    std       box_x,u
                     cmpd      #10
                     bge       bx_hi
                     ldd       #2
-                    std       <box_dx
+                    std       box_dx,u
                     bra       by_up
 bx_hi               cmpd      #270
                     ble       by_up
                     ldd       #-2
-                    std       <box_dx
+                    std       box_dx,u
 
 * Update box_y
-by_up               ldd       <box_y
-                    addd      <box_dy
-                    std       <box_y
+by_up               ldd       box_y,u
+                    addd      box_dy,u
+                    std       box_y,u
                     cmpd      #20
                     bge       by_hi
                     ldd       #1
-                    std       <box_dy
+                    std       box_dy,u
                     bra       draw_box
 by_hi               cmpd      #190
                     ble       draw_box
                     ldd       #-1
-                    std       <box_dy
+                    std       box_dy,u
 
 * Draw new box at (box_x, box_y): 40x40 with bright red color 205
-draw_box            ldx       <box_x
-                    ldy       <box_y
+draw_box            ldx       box_x,u
+                    ldy       box_y,u
                     lda       #205
                     lbsr      DmaFillBox
 
@@ -372,22 +393,24 @@ draw_box            ldx       <box_x
                     ldx       #2
                     os9       F$Sleep
 
-                    ldd       <frames_left
+                    ldu       <saved_u
+                    ldd       frames_left,u
                     subd      #1
-                    std       <frames_left
+                    std       frames_left,u
                     lbne      AnimLoop
 
 * ====================================================================
 * Clean Exit: Restore Text Mode, Flush Keys, and Free Screen RAM
 * ====================================================================
 CleanExit           equ       *
+                    ldu       <saved_u
 
 * Flush any pending keyboard input
 FlushKeys           clra                          path 0
                     ldb       #SS.Ready
                     os9       I$GetStt
                     bcs       DoneFlush
-                    leax      <temp_buf,u
+                    leax      temp_buf,u
                     ldy       #1
                     os9       I$Read
                     bra       FlushKeys
@@ -398,16 +421,16 @@ DoneFlush
                     lbsr      PrintStr
 
 * Restore terminal options
-                    leax      <popts,u
+                    leax      popts,u
                     clra                          path 0
                     ldb       #SS.Opt
                     os9       I$GetStt
                     bcs       restoredone@
-                    lda       <saved_eko
+                    lda       saved_eko,u
                     sta       4,x
-                    lda       <saved_int
+                    lda       saved_int,u
                     sta       16,x
-                    lda       <saved_qut
+                    lda       saved_qut,u
                     sta       17,x
                     clra                          path 0
                     ldb       #SS.Opt
@@ -437,11 +460,7 @@ ExitErr             ldb       #1
 * --------------------------------------------------------------------
 DmaFillRect         pshs      a,x,y
                     sta       >DMA_DATA_WRITE     FEC1 = fill color
-                    lbsr      CalcPixelPhys       compute 24-bit physical address for (X, Y)
-                    sta       >DMA_DST_H          FEC9
-                    stb       >DMA_DST_M          FECA
-                    lda       <temp_buf
-                    sta       >DMA_DST_L          FECB
+                    lbsr      CalcPixelPhys       compute 24-bit physical address and write to $FEC8-$FECA
 
 * Set 2D dimensions: Width = 80, Height = 50
                     clr       >DMA_SZ_X_H         FECC = 0
@@ -469,11 +488,7 @@ DmaFillRect         pshs      a,x,y
 * --------------------------------------------------------------------
 DmaFillBox          pshs      a,x,y
                     sta       >DMA_DATA_WRITE     FEC1 = fill color
-                    lbsr      CalcPixelPhys       compute 24-bit physical address for (X, Y)
-                    sta       >DMA_DST_H          FEC9
-                    stb       >DMA_DST_M          FECA
-                    lda       <temp_buf
-                    sta       >DMA_DST_L          FECB
+                    lbsr      CalcPixelPhys       compute 24-bit physical address and write to $FEC8-$FECA
 
 * Set 2D dimensions: Width = 40, Height = 40
                     clr       >DMA_SZ_X_H         FECC = 0
@@ -529,49 +544,37 @@ ed_done             clr       >DMA_CTRL           clear Start_Trf and disarm eng
 
 * --------------------------------------------------------------------
 * CalcPixelPhys: Calculate 24-bit physical address for (X, Y) on BM0
+* and program DMA destination registers ($FEC8-$FECA)
 * Input: X = col (0..319), Y = row (0..239)
-* Returns: A = Phys[23:16], B = Phys[15:8], temp_buf = Phys[7:0]
+* Base address: bm_phys_h,u, bm_phys_m,u, bm_phys_l,u
 * Formula: Offset = Y * 320 + X = Y * 256 + Y * 64 + X
-* Note: 320x240 canvas is 76,800 bytes ($012C00), which exceeds 64KB.
-* Uses full 24-bit arithmetic to prevent wrapping at row 205.
 * --------------------------------------------------------------------
-CalcPixelPhys       pshs      x,y,u
-* 1. Initialize Offset with X (col: 0..319)
-                    tfr       x,d                 A = X_hi (0 or 1), B = X_lo
-                    stb       <temp_buf           temp_buf = Phys[7:0] initial
-                    sta       ,-s                 stack: [Off_M] = X_hi
-                    clr       ,-s                 stack: [Off_H] = 0, [Off_M] = X_hi
-
-* 2. Add Y * 256 (middle byte += Y, carry to high byte)
-                    tfr       y,d                 B = Y low byte (0..239)
-                    addb      1,s                 B = Off_M + Y
-                    stb       1,s                 update Off_M
-                    bcc       cpp_y256_no_c
-                    inc       ,s                  propagate carry to Off_H
-cpp_y256_no_c
-
-* 3. Add Y * 64 (computed via 8x8 mul: max product = 239 * 64 = 15,296 = $3BC0)
-                    tfr       y,d                 B = Y
+CalcPixelPhys       pshs      d,x,y
+* 1. Compute Y * 64 (max = 239 * 64 = 15,296 = $3BC0)
+                    tfr       y,d                 B = Y (0..239)
                     lda       #64
                     mul                           D = Y * 64 (A = prod_hi, B = prod_lo)
-                    addb      <temp_buf           add prod_lo to low byte
-                    stb       <temp_buf           Phys[7:0] finalized!
-                    bcc       cpp_add_hi
-                    inca                          propagate low carry into prod_hi
-cpp_add_hi          adda      1,s                 A = Off_M + prod_hi
-                    sta       1,s                 update Off_M
-                    bcc       cpp_off_done
+* 2. Add X (col: 0..319)
+                    addd      2,s                 D = Y * 64 + X (A = off_m, B = off_l)
+* 3. Add Y * 256 (add Y to register A)
+                    clr       ,-s                 allocate temporary high byte on stack (Off_H = 0)
+                    adda      6,s                 A = off_m + Y (low byte of original Y is at 6,s)
+                    bcc       cpp_no_c1@
                     inc       ,s                  propagate carry to Off_H
-cpp_off_done
+cpp_no_c1@
+* 4. Store Low byte to $FEC8 (bm_phys_l is 0, so low byte is finalized in B)
+                    stb       >DMA_DST_L          store Low byte to $FEC8
+* 5. Add Base physical address: bm_phys_m,u to A and store to $FEC9
+                    adda      bm_phys_m,u
+                    bcc       cpp_no_c2@
+                    inc       ,s                  propagate carry to Off_H
+cpp_no_c2@          sta       >DMA_DST_M          store Mid byte to $FEC9
+* 6. Add Base physical address: bm_phys_h,u to Off_H and store to $FECA
+                    lda       ,s+                 pull Off_H
+                    adca      bm_phys_h,u
+                    sta       >DMA_DST_H          store High byte to $FECA
 
-* 4. Add 24-bit base address of Bitmap 0 (bm_phys_h, bm_phys_m, bm_phys_l=0)
-                    lda       1,s                 A = Off_M
-                    adda      <bm_phys_m          A = Off_M + bm_phys_m
-                    tfr       a,b                 B = Phys[15:8]
-                    lda       ,s                  A = Off_H
-                    adca      <bm_phys_h          A = Off_H + bm_phys_h + Carry
-                    leas      2,s                 restore temporary stack
-                    puls      x,y,u,pc
+                    puls      d,x,y,pc
 
 * --------------------------------------------------------------------
 * InitClutDirect: Build 256-color palette directly in CLUT 0

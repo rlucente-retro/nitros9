@@ -849,16 +849,16 @@ DMA_FILL_BYTE       equ       DMA_STATUS_REG fec1 w the 8-bit fill value (ctrl b
 DMA_DATA_2_WRITE    equ       DMA_STATUS_REG the older name for DMA_FILL_BYTE
 DMA_FILL_WORD_H     rmb       1         fec2 w   16-bit fill, odd/high byte (ctrl b6 SET)
 DMA_FILL_WORD_L     rmb       1         fec3 w   16-bit fill, even/low byte
-DMA_UNUSED_0        rmb       1         fec4     nothing in the engine reads this byte
-* Source address, 24 bit.
-DMA_SOURCE_ADDR_H   rmb       1         fec5 w   source [23:16]
-DMA_SOURCE_ADDR_M   rmb       1         fec6 w   source [15:8]
-DMA_SOURCE_ADDR_L   rmb       1         fec7 w   source [7:0]
-DMA_UNUSED_1        rmb       1         fec8     nothing in the engine reads this byte
-* Destination address, 24 bit.
-DMA_DEST_ADDR_H     rmb       1         fec9 w   destination [23:16]
-DMA_DEST_ADDR_M     rmb       1         feca w   destination [15:8]
-DMA_DEST_ADDR_L     rmb       1         fecb w   destination [7:0]
+* Source address, 24 bit (Little-Endian: L, M, H, unused).
+DMA_SOURCE_ADDR_L   rmb       1         fec4 w   source [7:0]
+DMA_SOURCE_ADDR_M   rmb       1         fec5 w   source [15:8]
+DMA_SOURCE_ADDR_H   rmb       1         fec6 w   source [23:16]
+DMA_UNUSED_0        rmb       1         fec7     nothing in the engine reads this byte
+* Destination address, 24 bit (Little-Endian: L, M, H, unused).
+DMA_DEST_ADDR_L     rmb       1         fec8 w   destination [7:0]
+DMA_DEST_ADDR_M     rmb       1         fec9 w   destination [15:8]
+DMA_DEST_ADDR_H     rmb       1         feca w   destination [23:16]
+DMA_UNUSED_1        rmb       1         fecb     nothing in the engine reads this byte
 * Sizes. In 2D mode X is the row length and Y the row count.
 DMA_SIZE_X_H        rmb       1         fecc w   X size [15:8]
 DMA_SIZE_X_L        rmb       1         fecd w   X size [7:0]
