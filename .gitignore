@@ -30,3 +30,7 @@ helpmsg
 
 # usim09pt FRAM persistence file (emulator artifact, holds reset vector)
 picothing.fram
+
+feu.startup
+level1/wildbits/sys/fonts/
+level1/wildbits/sys/backgrounds/
