@@ -16,6 +16,7 @@ $(addprefix $(MODDIR)/,$(addsuffix .bin,$(TESTS_RAW))): $(MODDIR)/%.bin: $(TESTS
 define RECIPE_INSTALL
 	$(OS9COPY) $(filter-out %.asm $(addprefix $(TESTS_DIR)/,$(addsuffix .bin,$(TESTS_RAW))),$(wildcard $(TESTS_DIR)/*)) $(1),TESTS
 	$(OS9COPY) $(addprefix $(MODDIR)/,$(addsuffix .bin,$(TESTS_RAW))) $(1),TESTS
+	$(OS9ATTR_EXEC) $(1),TESTS/platform_clut $(1),TESTS/mountains_clut $(1),TESTS/clouds_clut
 	@sz=$$(wc -c < $(1) | tr -d ' '); \
 	tgt=$$(( ((sz + 1048575) / 1048576) * 1048576 )); \
 	if [ "$$tgt" -gt "$$sz" ]; then \

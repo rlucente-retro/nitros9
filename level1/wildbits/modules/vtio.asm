@@ -2112,40 +2112,29 @@ SSPalet             pshs      cc
 ;;; Exit:  B = A non-zero error code.
 ;;;       CC = Carry flag clear to indicate success
 SSDfPal             pshs      a,x,y,u
-*                   **** Map in block for CLUT Registers
-                    pshs      x
-                    ldx       #$C1
-                    lbsr      mapblock
-                    puls      x
-                    bcs       end@                if error, end and return error code
-*                   **** Calculate CLUT offset              
-                    pshs      u                   push map logical addr
-                    lda       R$X+1,x
-                    lsla                          multiply by 2 so index works
-                    pshs      x                   push pointer to caller Regs
+                    lda       MAPSLOT             save current MAPSLOT
+                    sta       V.MapSav,u
+                    lda       #$C1                Block $C1 contains CLUT registers
+                    sta       MAPSLOT             map Block $C1 into system window (MAPADDR)
+*                   **** Calculate CLUT offset in Block $C1
+                    lda       R$X+1,x             caller's CLUT # (0-3)
+                    anda      #$03
+                    lsla                          multiply by 2 for word offset
                     leax      clutlookup,pcr
-                    ldd       a,x
-                    leau      d,u                 ldu with offset for CLUT
-*                   **** Start F$Move (with U from above)
-                    ldx       ,s                  load pointer to caller Regs
-                    ldx       R$Y,x               x=Get pointer to caller data
+                    ldu       a,x                 offset within block ($1000, $1400, $1800, $1C00)
+                    leau      MAPADDR,u           U = destination address in system space
+*                   **** F$Move caller data to system space
+                    ldx       1,s                 restore pointer to caller Regs
+                    ldx       R$Y,x               X = pointer to caller data
                     ldy       <D.Proc             Get caller process
-                    lda       P$Task,y            a=source Task# (Caller)
-                    ldb       <D.SysTsk           b=dest Task# (System)
+                    lda       P$Task,y            a = source Task# (Caller)
+                    ldb       <D.SysTsk           b = dest Task# (System)
                     ldy       #$400               moving 1K
                     os9       F$Move              copy data
-                    bcs       errormove@          return if error
-*                   **** Exit Move
-                    puls      x
-noerror@            puls      u
-                    bsr       clearblock
-                    clrb                          no error code
-                    bra       end@
-errormove@          puls      x
-                    puls      u                   come here on F$Move error
-                    bsr       clearblock
-                    coma                          set carry bit on error
-end@                puls      u,y,x,a,pc
+                    ldu       5,s                 restore device statics
+                    lda       V.MapSav,u          restore MAPSLOT
+                    sta       MAPSLOT
+                    puls      u,y,x,a,pc
 
 clutlookup          fdb       $1000,$1400,$1800,$1C00
 
