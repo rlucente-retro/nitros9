@@ -411,10 +411,14 @@ LoadPalette         sty       <palette_num
                     pshs      u
                     clra
                     os9       F$Load
+                    bcs       LoadFail@
                     tfr       u,d
                     puls      u
-                    lbcs      Failure
                     std       <module
+                    bra       LoadOK@
+LoadFail@           puls      u
+                    lbra      Failure
+LoadOK@
                     sty       <palette_src
                     leax      palette,u
                     ldy       #1024
@@ -439,12 +443,17 @@ PaletteReady        pshs      u
                     ldu       <module
                     os9       F$Unlink
                     puls      u
-                    ldx       <palette_num
-                    leay      palette,u
-                    clra
-                    ldb       #SS.DfPal
-                    os9       I$SetStt
-                    lbcs      Failure
+                    lda       <palette_num+1
+                    anda      #$03
+                    lsla
+                    lsla
+                    clrb
+                    addd      #$1000
+                    addd      <c1addr
+                    tfr       d,y
+                    leax      palette,u
+                    ldd       #1024
+                    lbsr      Copy
                     rts
 * D = physical block; return the high two bytes of its identity SRAM address.
 BlockAddress        lslb

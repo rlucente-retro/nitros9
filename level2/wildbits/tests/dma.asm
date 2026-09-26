@@ -98,7 +98,7 @@ perm                fcb       $C7,$C6,$C5,$C4
                     fcb       $CB,$CA,$C9,$C8
                     fcb       $CD,$CC,$CF,$CE
                     fcb       $D1,$D0,$D3,$D2
-                    fcb       $D4,$D5,$D6,$D7
+                    fcb       $84,$D5,$D6,$D7
 * what an address that simply reads back what was written would give
 iden                fcb       $C4,$C5,$C6,$C7
                     fcb       $C8,$C9,$CA,$CB
