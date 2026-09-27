@@ -28,6 +28,10 @@
 * $FEC9=M, $FECA=H) matching TinyVKY hardware. Rewrote CalcPixelPhys to
 * eliminate zero-page/temp_buf dependencies and write destination registers
 * directly. Added 10-tick sequential pauses between cascading windows.
+*  12      2026/09/27  Antigravity
+* Fix double-carry accumulation in CalcPixelPhys (adda instead of adca when
+* Off_H already holds carry) so all cascading windows and bouncing box render
+* to valid BM0 address space. Align auto-exit countdown to exactly 15 seconds.
 ********************************************************************
 
                     nam       dmashow
@@ -43,7 +47,7 @@ Level               set       2
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       11
+edition             set       12
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
@@ -318,7 +322,7 @@ AllocOk             ldu       <saved_u            restore static U corrupted by 
                     std       box_dx,u
                     ldd       #1
                     std       box_dy,u
-                    ldd       #900                900 loops (15 seconds at 60 fps)
+                    ldd       #450                450 loops (15 seconds at 30 fps)
                     std       frames_left,u
 
 AnimLoop            ldu       <saved_u
@@ -571,7 +575,7 @@ cpp_no_c1@
 cpp_no_c2@          sta       >DMA_DST_M          store Mid byte to $FECA
 * 6. Add Base physical address: bm_phys_h,u to Off_H and store to $FEC9
                     lda       ,s+                 pull Off_H
-                    adca      bm_phys_h,u
+                    adda      bm_phys_h,u
                     sta       >DMA_DST_H          store High byte to $FEC9
 
                     puls      d,x,y,pc
