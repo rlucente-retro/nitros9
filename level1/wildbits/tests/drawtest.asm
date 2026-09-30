@@ -18,7 +18,7 @@
 *  5       2026/09/24  Antigravity
 * Eliminated FPGA text raster pipeline static dashes by enabling text overlay
 * (FX_BM+FX_GRF+FX_OVR+FX_TXT = $0F) in SS.DScrn, keeping the Vicky text pipeline
-* synchronized with blanked text buffers ($C2/$C3) as proven in dmashowtest.
+* synchronized with blanked text buffers ($C2/$C3) as proven in dmashow.
 * Separated pxlblk_active flag from 16-bit pxlblk_mapped block tracker in writepixel.
 *
 *  4       2026/09/24  Antigravity
