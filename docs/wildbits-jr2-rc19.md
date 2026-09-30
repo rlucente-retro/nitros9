@@ -1,0 +1,1 @@
+RC19: the CPU reads RAM in a 16-tick scheduler frame (12.5 MHz fetch) instead of the 24-tick frame; writes, I/O, flash and the external bus keep their rc18 timing. Everything in rc18 (UART baud timing, reset sequencing, $FF9x sound aliases, DMA logic ops, line engine) is unchanged; board-specific SRAM timing as before, no ILA, no RP2040.
