@@ -32,6 +32,11 @@
 * Fix double-carry accumulation in CalcPixelPhys (adda instead of adca when
 * Off_H already holds carry) so all cascading windows and bouncing box render
 * to valid BM0 address space. Align auto-exit countdown to exactly 15 seconds.
+*  13      2026/09/30  Antigravity
+* Explicitly clear DMA_OP_REG ($FED4) at startup to prevent dirty logic ops
+* from distorting fill/blit colors across cold boot/reset.
+* Correct CLUT 0 byte order to [Red, Green, Blue, Alpha] (Byte 0 = Red,
+* Byte 2 = Blue) matching physical TinyVKY II hardware and fixing Red/Blue swap.
 ********************************************************************
 
                     nam       dmashowtest
@@ -47,7 +52,7 @@ Level               set       2
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       12
+edition             set       13
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
@@ -71,6 +76,7 @@ DMA_STRD_S_H        equ       $FED0
 DMA_STRD_S_L        equ       $FED1
 DMA_STRD_D_H        equ       $FED2
 DMA_STRD_D_L        equ       $FED3
+DMA_OP              equ       DMA_BASE_ADDR+DMA_OP_REG
 VKY_RAST_COL        equ       $FFD8
 VKY_RAST_ROW        equ       $FFDA
 
@@ -100,6 +106,7 @@ name                fcs       /dmashowtest/
                     fcb       edition
 
 start               equ       *
+                    clr       >DMA_OP             ensure DMA is in pure COPY mode
                     tfr       u,d
                     tfr       a,dp                sync DP with U base page
                     stu       <saved_u            save static register U immediately!
@@ -583,18 +590,18 @@ cpp_no_c2@          sta       >DMA_DST_M          store Mid byte to $FECA
 * --------------------------------------------------------------------
 * InitClutDirect: Build 256-color palette directly in CLUT 0
 * Entry: X = pointer to CLUT 0 ($1000 in mapped Block $C1)
-* Format: 4 bytes per color: [Blue, Green, Red, 0]
+* Format: 4 bytes per color: [Red, Green, Blue, 0]
 * --------------------------------------------------------------------
 InitClutDirect      pshs      x,y
                     clrb                          B = index (0..255)
-ic_lp               stb       ,x                  Blue = index
+ic_lp               tfr       b,a
+                    coma
+                    sta       ,x                  Red = 255 - index
                     pshs      b
                     lslb
                     stb       1,x                 Green = index * 2
                     puls      b
-                    tfr       b,a
-                    coma
-                    sta       2,x                 Red = 255 - index
+                    stb       2,x                 Blue = index
                     clr       3,x                 Alpha = 0
                     leax      4,x
                     incb
@@ -602,70 +609,70 @@ ic_lp               stb       ,x                  Blue = index
 
 * Explicit overrides for vibrant demo colors:
                     ldx       ,s                  restore CLUT 0 base pointer
-* Color 24 (Background): Deep Slate Blue (B=80, G=30, R=20)
+* Color 24 (Background): Deep Slate Blue (R=20, G=30, B=80)
                     leax      (24*4),x
-                    lda       #80
+                    lda       #20
                     sta       ,x
                     lda       #30
                     sta       1,x
-                    lda       #20
+                    lda       #80
                     sta       2,x
 
-* Color 45 (Window 1): Cyan (B=240, G=220, R=0)
+* Color 45 (Window 1): Cyan (R=0, G=220, B=240)
                     ldx       ,s
                     leax      (45*4),x
-                    lda       #240
-                    sta       ,x
+                    clr       ,x
                     lda       #220
                     sta       1,x
-                    clr       2,x
+                    lda       #240
+                    sta       2,x
 
-* Color 95 (Window 2): Bright Green (B=50, G=240, R=40)
+* Color 95 (Window 2): Bright Green (R=40, G=240, B=50)
                     ldx       ,s
                     leax      (95*4),x
-                    lda       #50
+                    lda       #40
                     sta       ,x
                     lda       #240
                     sta       1,x
-                    lda       #40
+                    lda       #50
                     sta       2,x
 
-* Color 145 (Window 3): Gold/Yellow (B=20, G=215, R=255)
+* Color 145 (Window 3): Gold/Yellow (R=255, G=215, B=20)
                     ldx       ,s
                     leax      (145*4),x
-                    lda       #20
+                    lda       #255
                     sta       ,x
                     lda       #215
                     sta       1,x
-                    lda       #255
+                    lda       #20
                     sta       2,x
 
-* Color 175 (Window 4): Orange (B=0, G=128, R=255)
+* Color 175 (Window 4): Orange (R=255, G=128, B=0)
                     ldx       ,s
                     leax      (175*4),x
-                    clr       ,x
+                    lda       #255
+                    sta       ,x
                     lda       #128
                     sta       1,x
-                    lda       #255
-                    sta       2,x
+                    clr       2,x
 
-* Color 205 (Box / Window 5): Vivid Red (B=30, G=30, R=250)
+* Color 205 (Box / Window 5): Vivid Red (R=250, G=30, B=30)
                     ldx       ,s
                     leax      (205*4),x
-                    lda       #30
-                    sta       ,x
-                    sta       1,x
                     lda       #250
+                    sta       ,x
+                    lda       #30
+                    sta       1,x
                     sta       2,x
 
-* Color 235 (Window 6): Magenta (B=220, G=30, R=240)
+* Color 235 (Window 6): Magenta (R=240, G=30, B=220)
                     ldx       ,s
                     leax      (235*4),x
-                    lda       #220
+                    lda       #240
                     sta       ,x
                     lda       #30
                     sta       1,x
-                    lda       #240
+                    lda       #220
                     sta       2,x
 
                     puls      x,y,pc

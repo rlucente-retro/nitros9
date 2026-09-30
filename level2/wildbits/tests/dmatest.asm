@@ -7,6 +7,12 @@
 *  3. 2D Rectangular Blit with Strides (16x16 block in 32-byte pitch)
 *  4. 2D Rectangular Fill with Stride (8x8 box in 32-byte pitch)
 *  5. DMA Completion Interrupt Assertion (INT_DMA0 on Group 0, bit 6)
+*
+* Edt/Rev  YYYY/MM/DD  Modified by
+* ------------------------------------------------------------------
+*   2      2026/09/30  Antigravity
+* Explicitly clear DMA_OP_REG ($FED4) at startup to ensure standard
+* direct COPY mode across cold boot/reset.
 ********************************************************************
 
                     nam       dmatest
@@ -19,7 +25,7 @@
 tylg                set       Prgrm+Objct
 atrv                set       ReEnt+rev
 rev                 set       $00
-edition             set       1
+edition             set       2
 
 * Explicit Hardware Register Equates
 DMA_BASE_ADDR       equ       $FEC0
@@ -43,6 +49,7 @@ DMA_STRD_S_H        equ       DMA_BASE_ADDR+DMA_SRC_STRIDE_X_H
 DMA_STRD_S_L        equ       DMA_BASE_ADDR+DMA_SRC_STRIDE_X_L
 DMA_STRD_D_H        equ       DMA_BASE_ADDR+DMA_DST_STRIDE_Y_H
 DMA_STRD_D_L        equ       DMA_BASE_ADDR+DMA_DST_STRIDE_Y_L
+DMA_OP              equ       DMA_BASE_ADDR+DMA_OP_REG
 
                     mod       eom,name,tylg,atrv,start,size
 
@@ -61,6 +68,7 @@ name                fcs       /dmatest/
                     fcb       edition
 
 start               equ       *
+                    clr       >DMA_OP             ensure DMA is in pure COPY mode
                     clr       <pass_count
                     clr       <fail_count
 
