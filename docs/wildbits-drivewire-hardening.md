@@ -149,14 +149,98 @@ healthy signature.
 
 ## Deployment pairing
 
-Disks built from this branch require the BAUDCE-fixed cores —
-minimum `wildbits_k2_6809_v8_rc3` / `wildbits_jr2_6809_v8_rc3`.
-**Recommended: the current cores, `wildbits_k2_6809_v8_rc6` and
-`wildbits_jr2_6809_v8_rc6`**, which add the WizNet ethernet fixes
-(K2) and the turbo-safe flash/cartridge/RTC write strobes (Jr2) on
-top of the baud fix. Driver hardening itself has no core dependency
-beyond the rc3 baud pairing.
+Disks built from this branch require the BAUDCE-fixed cores. Minimum:
+`wildbits_k2_6809_v8_rc3` / `wildbits_jr2_6809_v8_rc3` (2026-08-28, the
+fractional-BAUDCE fix in `SuperIO_JR.v`). Driver hardening itself has no
+core dependency beyond that baud pairing.
+
+**Current cores (2026-09-03): `wildbits_k2_6809_v8_rc10` and
+`wildbits_jr2_6809_v8_rc7`.** Both carry the sprite-engine fixes (rc7); the K2
+adds the hardware typematic engine (rc8), the shared flash/cartridge/RTC
+write-strobe policy (rc9) and 24-tick turbo fast RAM writes (rc10). The Jr2
+has had the write-strobe policy since rc6 and needs no rc8/rc9 counterpart.
+
+Core and disk ship together in the parity kits
+(`FoenixMgrWin/parity_wildbits_k2_v8_rc10`, `parity_wildbits_jr2_v8_rc7`):
+each kit holds that machine's core, the matching `l2_wildbits*.dsk`, the FEU
+booter/f0 blocks and the install script, so a kit is always a consistent
+pair. Mixing a kit disk with an older core, or an older disk with a newer
+core, reintroduces the 2.4% baud mismatch described above.
+
 Module fingerprints for `mdir -e` verification: `dwio_serial` = $37A,
 `rbdw` = $252 (current: retry purge + trailing-byte check + abort
 long-listen), $211 (FIFO reset + long purge), $20C (no FIFO reset),
 $1E6 (abort only), $1CF (stock).
+
+## The burst is masked again (2026-09-12)
+
+Field result of the second cut on the K2: frequent #244s. The trim had read the data burst with
+interrupts open, trusting the 64-byte RX FIFO (2.8 ms at 230400) to ride out any handler; a handler
+that runs longer than that in the 11 ms of a 256-byte leg loses bytes, and a lost byte is a #244
+plus a resync. `DWRead` now masks from the first byte of a leg to its end, as `wb/drivewire_hardening`
+read the whole leg, and keeps the trim only where it earns its keep: the WAIT for a late byte still
+opens interrupts after `DW_MASKED` polls, so a stalled server costs the caller time, never the
+machine its keyboard. Timeouts, purge, `PurgeRX`, `AbWait` and the poll state machine are unchanged.
+
+## Interrupt trim and the poll state machine (2026-09-07, wb/DriveWireCompatible)
+
+**Why.** With the hardening in place every sector transaction still ran from its first byte to
+its exit with IRQ and FIRQ masked, including every wait for a stalled server: up to 2.7 s in
+`DWRead`, 1.3 s in `PurgeRX`, 6 s in `AbWait`, times eight retries. Worse, `dwio`'s server poll
+for virtual-serial data ran a blocking transaction *inside the clock interrupt* every 3, 6 or 40
+ticks. Both machines showed the effect as a keyboard that stopped responding for seconds at a
+time. The interrupt investigation of 2026-09-07 found the kernel offers no protection either: on
+wildbits an interrupt that lands while a driver runs in system state is serviced by `FastIRQ`
+with no task switch, so nothing but interrupt time is lost when a driver waits with interrupts on.
+
+**Link arbitration.** The UART is shared between the tick poll and process-side transactions, so
+the two must never interleave bytes. `DW.LinkBusy` in the DriveWire statics page is the lock:
+
+- A process transaction takes the link with the new `DW$Settle` entry (offset 12 of `dwio`):
+  it marks the link busy, and if the tick poll still has a response owed it collects that
+  response first (sleeping a tick between looks, interrupts on), so the first byte the
+  transaction reads is really its own. A server that never answers costs `SETTLE_TRIES` ticks
+  once, then the line is reset and the poll backs off.
+- `rbdw` calls it as `LinkGet` at the start of Read, Write, GetStat/SetStat and the OP_INIT of
+  Init, and clears the flag (`LinkPut`) at every exit. Other callers of the link routines
+  (`rfm`, `clock2_dw`) are not in the wildbits boot list and were left alone.
+- The tick handler returns at once while the flag is set.
+
+**The trim.** With the lock in place `rbdw` no longer masks interrupts around a transaction.
+`DWRead` waits for the *first* byte of each leg with the caller's interrupts on and masks from
+that byte to the end of the leg (a 256-byte sector burst is 11 ms at 230400; the 16-byte RX
+FIFO cannot absorb an interrupt in the middle of it). The timeout purge inside `DWRead`,
+`PurgeRX`, `AbWait` and the trailing-byte check all run with interrupts on. `DWWrite` never masks:
+the server does not care about gaps between the bytes it receives.
+
+**The poll state machine.** `IRQSvc` never waits for the server now. A firing either sends
+OP_SERREAD (state 1, two bytes owed) or collects the owed response with `PollGet` (a short
+bounded look per byte; the bytes of one response arrive 43 us apart) and, once it is complete,
+processes it through the original handler (`PollProc`) and sends the next request, so the poll
+cadence is unchanged. A response that has not arrived stays owed; after `POLL_STALL` firings
+the line is reset (`PollPurge`: RX FIFO reset strobe, short drain) and the poll skips
+`POLL_HOLD` firings. A multi-read (OP_SERREADM) is capped at `POLL_MAXGRAB` = 16 bytes, the RX
+FIFO depth, and its bytes are collected at the next firing as well (`PollDoneM` finishes the
+buffer bookkeeping); virtual-serial bulk throughput is therefore bounded by 16 bytes per poll
+interval, which no wildbits boot list uses today.
+
+**Module fingerprints** (os9 ident): `dwio_serial` 1202 bytes CRC $D8EDBD, `rbdw` 640 bytes CRC $5AA640 (this branch, uncommitted 2026-09-07 evening); the hardening-only modules were `rbdw` $252 (size) as listed above.
+
+### Bench correction, same evening: the FIFO was never on
+
+Typing during `dir /x3` broke the transaction in flight (a #244 after the timeout, the typed keys
+delivered afterwards). The UART core (`uart_16750.vhd`) treats FCR bit 0 as the FIFO enable, and every
+FCR write in the DriveWire path had it clear, so the link had been running on a **one-byte** receive
+register; the fully-masked transactions read each byte within microseconds and never noticed. With
+interrupts on during a wait, a keystroke handler (a few hundred microseconds) or the clock tick
+landing as a response started lost bytes. Fixes: `dwinit` now enables the FIFOs in 64-byte mode
+inside the DLAB window (2.8 ms of tolerance), the two purge strobes keep bit 0 set, and `DWRead`
+waits masked for the first `DW_MASKED` polls (~10 ms) of every leg, taking the caller's interrupt
+state only when the server is slow. A prompt server is therefore read exactly as before the trim;
+only a stalled one hands the machine its interrupts back.
+
+**Second cut, later the same evening.** With the 64-byte FIFO proven on the bench, the sector burst is
+now read with interrupts on as well: `DWRead` masks only the first `DW_MASKED` = 512 polls (~3 ms) of the
+wait for a leg's first byte, and from that byte on every wait and every read runs with the caller's
+interrupts. Nothing in the link masks for longer than about 3 ms at a stretch; a sustained transfer is
+masked roughly a tenth of the time. The FIFO's 2.8 ms of cover exceeds any handler on either machine.
