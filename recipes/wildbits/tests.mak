@@ -17,6 +17,7 @@ define RECIPE_INSTALL
 	$(OS9COPY) $(filter-out %.asm $(addprefix $(TESTS_DIR)/,$(addsuffix .bin,$(TESTS_RAW))),$(wildcard $(TESTS_DIR)/*)) $(1),TESTS
 	$(OS9COPY) $(addprefix $(MODDIR)/,$(addsuffix .bin,$(TESTS_RAW))) $(1),TESTS
 	$(OS9ATTR_EXEC) $(1),TESTS/platform_clut $(1),TESTS/mountains_clut $(1),TESTS/clouds_clut
+	$(OS9ATTR_TEXT) $(1),TESTS/clouds_bm $(1),TESTS/mountains_bm $(1),TESTS/platform_bm $(1),TESTS/l1_platform_80x15.bin $(1),TESTS/l2_mountains_40x15.bin $(1),TESTS/l3_clouds_40x15.bin
 	@if [ -d "$(NITROS9DIR)/../livingworlds/fnx-os9" ]; then \
 		LW_DIR="$(NITROS9DIR)/../livingworlds/fnx-os9"; \
 		if [ -f "$$LW_DIR/livingworlds" ]; then \
