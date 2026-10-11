@@ -39,6 +39,10 @@ define RECIPE_INSTALL
 			fi; \
 		fi; \
 	fi
+	@if [ -d "$$HOME/tmp/future_wildbits_jr2_Longview_rc24/sounds" ]; then \
+		$(MAKDIR) $(1),SOUNDS; \
+		$(OS9COPY) "$$HOME/tmp/future_wildbits_jr2_Longview_rc24/sounds"/* $(1),SOUNDS; \
+	fi
 	@sz=$$(wc -c < $(1) | tr -d ' '); \
 	tgt=$$(( ((sz + 1048575) / 1048576) * 1048576 )); \
 	if [ "$$tgt" -gt "$$sz" ]; then \
