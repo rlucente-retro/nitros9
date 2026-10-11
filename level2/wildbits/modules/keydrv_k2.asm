@@ -50,6 +50,10 @@ name                fcs       /keydrv/
 V.META              rmb       1         the state of the Wildbits "META" key
 DownRightStates     rmb       1         the state of the down and right arrow keys during polling
 V.RptKey            rmb       1         table index (row*8+col) of the key that armed the repeat
+* wb/k2_core_typematic_support, ported from the Level 1 driver (2026-10-10):
+V.HWRep             rmb       1         $01 = rc8+ core typematic armed (core paces key repeat)
+V.RowChg            rmb       1         nonzero = some row changed during this FIFO event
+V.KIRQ              rmb       1         $01 = group-3 keyboard interrupt installed and unmasked
 
 * keydrv has three 3-byte entry points:
 *   - Init
@@ -88,7 +92,9 @@ ex@                 rts                 ; return to the caller
 *  for a repeat.  KEYDELAY1 (=30) and KEYDELAY (=5) are defined in
 *  wildbits_vtio.d, in ticks.  V.LastCh and V.KRTimer are also in
 *  wildbits_vtio.d; V.RptKey is keydrv's own (V.KeyDrvStat).
-KeyRepeat           ldx       #OKB.Base ; point to optical keyboard base
+KeyRepeat           tst       V.HWRep,u ; hardware typematic armed?
+                    bne       exitkr@   ; yes - the core paces repeats, never double up
+                    ldx       #OKB.Base ; point to optical keyboard base
                     tst       OKB.Stat,x ; check FIFO status
                     beq       exitkr@
                     lda       V.LastCh,u
@@ -125,6 +131,7 @@ exitkr@             rts
 ReadFIFOData        lda       V.LastCh,u
                     sta       V.CurLastCh,u
                     clr       V.LastCh,u
+                    clr       V.RowChg,u ; no row change seen yet this event
 * gr.KeyLive is rebuilt from scratch here: the FIFO carries the whole
 * matrix on every event, so the array cannot drift or strand a key.
                     ldx       #gr.KeyLive
@@ -156,7 +163,18 @@ cont@               sta       b,y       ; store as historical value
                     bra       doRow8@
 row9end@            lda       V.CurLastCh,u
                     sta       V.LastCh,u
-                    rts
+* Hardware typematic (rc8+ core): an event in which no row changed is the
+* core's repeat push - re-emit the held character exactly as KeyRepeat would.
+* (Modifier-only holds never set V.LastCh, so they repeat nothing.)
+                    tst       V.RowChg,u ; did any row change this event?
+                    bne       rfdone@   ; yes - normal key event, done
+                    tst       V.HWRep,u ; hardware typematic armed?
+                    beq       rfdone@   ; no - stray event, ignore
+                    lda       V.LastCh,u ; repeatable character held?
+                    beq       rfdone@   ; no - nothing to repeat
+                    lbsr      BufferChar ; emit the held character again
+                    lbsr      HandleSignals ; and signal it like any keypress
+rfdone@             rts
 
 ********************************************************************
 * ProcessRow - process changes in keyboard row
@@ -168,6 +186,7 @@ row9end@            lda       V.CurLastCh,u
 * KeyDownTest masks B down to the column itself.
 
 ProcessRow          pshs      d,x,y
+                    inc       V.RowChg,u ; a row changed - this is a real key event
                     lda       D.KySns   ; check SHIFT to set correct key table
                     bita      #SHIFTBIT
                     beq       noshift@
@@ -380,6 +399,13 @@ aklput@             sta       ,x
 * Advance the circular buffer one character.
 
 BufferChar          pshs      d,x,y
+* WILDBITS 2026-09-09 (wb/k2_core_typematic_support): NEVER BUFFER A NUL. Row 8 of both key tables has
+* six unmapped positions, so a spurious or stuck bit yields $00; buffered, it sets V.CurLastCh to 0, the
+* next NUL matches it and repeats at the fast rate for ever - SS.Ready reports characters, every read
+* returns $00 and any program that polls for input spins with a dead keyboard (UltiMusE III's hang).
+* Guarded here because every path in (key-down, arrows, modifiers, the repeat timer) comes through.
+                    tsta                ; unmapped key position?
+                    beq       bye@      ; yes - drop it, never reaches the buffer
                     cmpa      V.CurLastCh,u
                     beq       shortdelay@
                     ldb       #KEYDELAY1
@@ -509,7 +535,22 @@ Init                clr       V.CAPSLck,u
                     clr       V.LastCh,u
                     lda       #KEYDELAY1
                     sta       V.KRTimer,u
-                    ldx       #D.RowState ; point to the row state globals
+* Arm hardware typematic when the core has it (v8_rc8+). The registers only
+* exist there: older cores ignore the write and read back 0, so a
+* write-then-readback of the delay register is the core detection probe.
+* On old cores V.HWRep stays 0 and the software V.KRTimer repeat runs as ever.
+                    clr       V.HWRep,u
+                    ldx       #OKB.Base
+                    lda       #KEYDELAY1 ; initial delay in frames (=30, 500ms)
+                    sta       OKB.TypDly,x
+                    cmpa      OKB.TypDly,x ; did the register take the write?
+                    bne       nohw@     ; no - pre-rc8 core, keep software repeat
+                    lda       #KEYDELAY ; repeat period in frames (=5, 12 cps)
+                    sta       OKB.TypPer,x
+                    lda       #$01
+                    sta       OKB.TypCtl,x ; enable hardware key repeat
+                    sta       V.HWRep,u ; and remember the core is pacing repeats
+nohw@               ldx       #D.RowState ; point to the row state globals
                     ldb       #9        ; b = 9 (bytes to set)
 l@                  clr       ,x+       ; set byte at X with $FF and increment X
                     decb                ; decrement B
@@ -519,7 +560,74 @@ l@                  clr       ,x+       ; set byte at X with $FF and increment X
 l2@                 clr       ,x+
                     decb
                     bne       l2@
-Term                rts                 ; return to the caller
+* Service the keyboard from its own interrupt - group 3 bit 2, the FIFO
+* empty->non-empty edge - instead of waiting for the 60Hz tick; the tick
+* call in vtio's AltISR stays as a safety net. vtio calls Init once (the
+* first INIZ, /term) with U = D.KbdSta. F$IRQ needs a UNIQUE U per entry
+* to remove one, and mousedrv already registered vtio's static base, so
+* register the address of our own sub-statics; the ISR recovers the base.
+                    clr       V.KIRQ,u
+                    pshs      u
+                    leau      V.KeyDrvStat,u ; unique U: keydrv's sub-statics address
+                    ldd       #INT_PENDING_3 ; the shared group-3 pending register
+                    leax      KBD_Pckt,pcr ; flip/mask/priority packet
+                    leay      KBD_IRQSvc,pcr ; the edge service routine
+                    os9       F$IRQ     ; install the handler
+                    puls      u
+                    bcs       InitEx    ; no table room: stay tick-polled, still works
+                    lda       #INT_OPT_KBD ; clear any keystroke edge latched since boot
+                    sta       >INT_PENDING_3 ; (write-1-to-clear, per-bit)
+                    lda       >INT_MASK_3 ; then unmask ONLY our bit - this register
+                    anda      #^INT_OPT_KBD ; is shared with the WizFi RX/TX bits, so
+                    sta       >INT_MASK_3 ; read-modify-write, never absolute stores
+                    lda       #$01
+                    sta       V.KIRQ,u  ; remember: interrupt mode armed
+InitEx              clrb
+                    rts                 ; return to the caller
+
+* The exit label is GLOBAL on purpose - the branch to it crosses an os9
+* call, and the os9 macro breaks @-local label scope in lwasm.
+Term                tst       V.KIRQ,u  ; interrupt mode armed?
+                    beq       TermEx    ; no - nothing to tear down
+                    lda       >INT_MASK_3 ; re-mask our bit (RMW - shared register)
+                    ora       #INT_OPT_KBD
+                    sta       >INT_MASK_3
+                    pshs      u
+                    leau      V.KeyDrvStat,u ; the unique U we registered with
+                    ldd       #INT_PENDING_3
+                    ldx       #0        ; X = 0 removes the handler
+                    leay      KBD_IRQSvc,pcr
+                    os9       F$IRQ
+                    puls      u
+                    clr       V.KIRQ,u
+TermEx              rts                 ; return to the caller
+
+********************************************************************
+* KBD_IRQSvc - group-3 keyboard edge service routine
+*
+* Entered by IOMan's IRQ poll with U = the unique address we registered
+* (vtio statics + V.KeyDrvStat); recover the real static base first.
+* Clear our pending bit BEFORE draining, then drain the FIFO TO EMPTY:
+* the edge only re-fires on an empty->non-empty transition, so any byte
+* left behind would silence the keyboard until the tick safety net
+* caught up.  A byte arriving after the final empty check makes a fresh
+* edge and a fresh interrupt.
+KBD_IRQSvc          pshs      y,u
+                    leau      -V.KeyDrvStat,u ; recover the vtio static base
+                    lda       #INT_OPT_KBD
+                    sta       >INT_PENDING_3 ; claim our edge (write-1-to-clear, per-bit)
+kdrain@             ldx       #OKB.Base
+                    tst       OKB.Stat,x ; 0 = optical keyboard with data waiting
+                    bne       kdone@
+                    lbsr      ReadFIFOData ; decode one snapshot
+                    bra       kdrain@   ; and keep going until empty
+kdone@              puls      y,u,pc
+
+* F$IRQ packet: claim ONLY the keyboard bit of the shared group-3
+* register - the WizFi entries claim theirs the same way.
+KBD_Pckt            fcb       %00000000 ; flip byte (bits latch high)
+                    fcb       INT_OPT_KBD ; mask byte
+                    fcb       $F0       ; priority
 
 * WBK key table
 HOME                set       $01
