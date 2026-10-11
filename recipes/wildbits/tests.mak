@@ -27,6 +27,18 @@ define RECIPE_INSTALL
 			$(OS9ATTR_TEXT) $(1),CMDS/pixmap8raw $(1),CMDS/pixmap13raw $(1),CMDS/pixmap16raw $(1),CMDS/pixmap17raw $(1),CMDS/pixmap18raw; \
 		fi; \
 	fi
+	@if [ -d "$(NITROS9DIR)/../infocom-os9-port" ]; then \
+		INFOCOM_DIR="$(NITROS9DIR)/../infocom-os9-port"; \
+		if [ -f "$$INFOCOM_DIR/infocom" ]; then \
+			$(OS9COPY) "$$INFOCOM_DIR/infocom" $(1),CMDS; \
+			$(OS9ATTR_EXEC) $(1),CMDS/infocom; \
+			$(MAKDIR) $(1),GAMES; \
+			$(MAKDIR) $(1),GAMES/INFOCOM; \
+			if [ -f "$$INFOCOM_DIR/games/zork1.z3" ]; then \
+				$(OS9COPY) "$$INFOCOM_DIR/games/zork1.z3" $(1),GAMES/INFOCOM; \
+			fi; \
+		fi; \
+	fi
 	@sz=$$(wc -c < $(1) | tr -d ' '); \
 	tgt=$$(( ((sz + 1048575) / 1048576) * 1048576 )); \
 	if [ "$$tgt" -gt "$$sz" ]; then \
