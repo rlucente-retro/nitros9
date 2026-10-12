@@ -113,7 +113,7 @@ endif # K2-only RP2040 modules and command
 # The two generated files go in $(OBJDIR), not the recipe folder (2026-10-11): as bare names they were written
 # into the source tree on every make and left there; "make clean" removes $(OBJDIR) with them.
 CMDS += diag
-$(MODDIR)/diag: $(L1PCD)/diag.asm $(L1PCD)/diag_hw.asm $(OBJDIR)/diagfont.inc $(OBJDIR)/diagpal.inc | $(MODDIR)
+$(MODDIR)/diag: $(L1PCD)/diag.asm $(L1PCD)/diag_hw.asm $(L1PCD)/diaglogo.asm $(L1PCD)/diagflower.asm $(L1PCD)/diagspeech.asm $(OBJDIR)/diagfont.inc $(OBJDIR)/diagpal.inc | $(MODDIR)
 	$(AS) $(AFLAGS) -I$(OBJDIR) -I$(L1PCD) $< $(ASOUT)$@
 
 $(OBJDIR)/diagfont.inc: $(LEVEL1)/wildbits/sys/fonts/phoenixegafont.asm | $(OBJDIR)
