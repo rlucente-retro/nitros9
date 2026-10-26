@@ -105,20 +105,32 @@ WatchCtl            EQU       IO.Base+$CA hardware vector watchpoint control
 PTIDEBase           EQU       IO.Base+$00 PATA base address
 
 *
+* Battery-backed RTC — DS12885 in Motorola mode (via GAL at $FF32-$FF33)
+*
+* MC146818-register-compatible.  Index/data pair: write the register
+* number to RTC.Idx, then read or write the value at RTC.Dat.  Each
+* access is two steps and must not be interrupted (mask IRQs around it).
+* 14 clock/control registers plus 114 bytes of NVRAM at $0E-$7F.
+*
+RTC.Idx             EQU       IO.Base+$32 register-select (index) port
+RTC.Dat             EQU       IO.Base+$33 data port
+
+*
 * Boot
 *
-                  IFEQ    Level-1
-* Level 1 boot definitions
-* The os9kernel blob (krn + krnp2 + init + boot) is pre-loaded here and
-* scanned by the kernel cold-start, so it must hold all four modules
-* (~3.9KB). $EC00-$FDFF = 4.5KB, leaving room; $EC00 also matches where
-* Level 2 places krn.
-Bt.Start            EQU       $EC00     kernel starts here
-Bt.Size             EQU       $1200     kernel area ($EC00-$FDFF)
-                  ELSE
-* Level 2 boot definitions
-Bt.Start            EQU       $E800     boot_picothing at $E800 (padded to 1024), krn at $EC00
-                  ENDC
+* REL preloads the whole bootfile, krn included, so that it ends at
+* Bt.End, and passes its start in X and its size in Y; the kernel adopts
+* it in place, so there is no boot module and no F$Boot (the Wildbits
+* scheme).  $FC00-$FDFF holds the Pico's debug monitor, so the bootfile
+* ends below it.  At Level 2 krn is the last module and sits at $EC00,
+* inside the fixed $E000-$FFFF window (KrnFixW); at Level 1 it is the
+* first.
+*
+BtPreld             EQU       1         REL preloads the bootfile
+KrnFixW             EQU       1         the kernel window is the fixed page KrnBlk
+Bt.End              EQU       $FC00     the bootfile ends here
+RAMBlks             EQU       $100      fixed RAM: 2MB in 8K blocks
+Bt.Start            EQU       $EC00     where krn sits at Level 2
 SHIFTBIT            EQU       0         no shift key on serial console
 
 *
